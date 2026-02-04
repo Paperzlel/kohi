@@ -47,6 +47,18 @@ assets = [
         path = "assets/shaders/Shader.MaterialStandardSkinned_vert.glsl"
     }
     {
+        name = "Shader.HF_Terrain"
+        path = "assets/shaders/Shader.HF_Terrain.ksc"
+    }
+    {
+        name = "Shader.HF_Terrain_frag"
+        path = "assets/shaders/Shader.HF_Terrain_frag.glsl"
+    }
+    {
+        name = "Shader.HF_Terrain_vert"
+        path = "assets/shaders/Shader.HF_Terrain_vert.glsl"
+    }
+    {
         name = "Shader.PBR_Terrain"
         path = "assets/shaders/Shader.PBR_Terrain.ksc"
     }

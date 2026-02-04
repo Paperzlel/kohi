@@ -526,13 +526,14 @@ void vulkan_image_copy_from_buffer(
 	vulkan_context* context,
 	vulkan_image* image,
 	VkBuffer buffer,
-	u64 offset,
+	u64 buffer_offset,
+	u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth,
 	vulkan_command_buffer* command_buffer) {
 	//
 	krhi_vulkan* rhi = &context->rhi;
 	VkBufferImageCopy region;
 	kzero_memory(&region, sizeof(VkBufferImageCopy));
-	region.bufferOffset = offset;
+	region.bufferOffset = buffer_offset;
 	region.bufferRowLength = 0;
 	region.bufferImageHeight = 0;
 
@@ -541,9 +542,13 @@ void vulkan_image_copy_from_buffer(
 	region.imageSubresource.baseArrayLayer = 0;
 	region.imageSubresource.layerCount = image->layer_count;
 
-	region.imageExtent.width = image->width;
-	region.imageExtent.height = image->height;
-	region.imageExtent.depth = 1;
+	region.imageOffset.x = px_x;
+	region.imageOffset.y = px_y;
+	region.imageOffset.z = px_z;
+
+	region.imageExtent.width = width;
+	region.imageExtent.height = height;
+	region.imageExtent.depth = depth;
 
 	rhi->kvkCmdCopyBufferToImage(
 		command_buffer->handle,

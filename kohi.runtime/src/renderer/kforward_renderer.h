@@ -1,5 +1,6 @@
 #pragma once
 
+#include "world/heightfield_terrain.h"
 #include <core/frame_data.h>
 #include <core_render_types.h>
 #include <core_resource_types.h>
@@ -44,6 +45,9 @@ typedef struct kforward_pass_data {
 	u32 sb_shader_set0_instance_id;
 
 	ktexture default_cube_texture;
+
+	kshader hf_terrain_shader;
+	u32 shader_set0_instance_id;
 } kforward_pass_data;
 
 typedef struct kdepth_prepass_data {
@@ -206,6 +210,8 @@ typedef struct kscene_pass_render_data {
 	// Terrain geo data
 	u16 terrain_count;
 	hm_terrain_render_data* terrains;
+
+	hf_terrain_render_data hf_terrain_data;
 } kscene_pass_render_data;
 
 typedef struct kwater_plane_render_data {

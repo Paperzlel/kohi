@@ -1,0 +1,142 @@
+version=1
+
+depth_test = true
+depth_write = true
+supports_wireframe = true
+cull_mode = "back"
+
+attachments = {
+	colour = [
+		{
+			name = "colour_buffer"
+			format = "RGBA8"
+		}
+	]
+	depth = {
+		name = "depth_buffer"
+		format = "D24"
+	}
+	stencil = {
+		name = "stencil_buffer"
+		format = "S8"
+	}
+}
+
+pipelines = [
+	{
+		name = "hf_terrain geometry"
+		stages = [
+			{
+				type = "vertex"
+				source_asset_name = "Shader.HF_Terrain_vert"
+				package_name = "Kohi.Runtime"
+			}
+			{
+				type = "fragment"
+				source_asset_name = "Shader.HF_Terrain_frag"
+				package_name = "Kohi.Runtime"
+			}
+		]
+
+		attributes = [
+			{
+				name = "in_position"
+				type = "vec4"
+			}
+			{
+				name = "in_normal"
+				type = "vec4"
+			}
+			{
+				name = "in_tangent"
+				type = "vec4"
+			}
+		]
+	}
+]
+
+binding_sets = [
+	{
+		name = "terrain shader global binding set"
+		max_instance_count = 1
+		bindings = [
+			{
+				type = "ubo"
+				name = "terrain global_ubo_data"
+				data_size = 1680
+				offset = 0
+			}
+			{
+				type = "storage"
+				name = "Kohi.StorageBuffer.LightingGlobal"
+			}
+			{
+				type = "texture"
+				name = "shadow cascade maps"
+				array_size = 0
+				texture_type = "texture2DArray"
+			}
+			{
+				type = "sampler"
+				name = "shadow cascade map samplers"
+				array_size = 0
+				sampler_type = "sampler2DArray"
+			}
+			{
+				type = "texture"
+				name = "IBL probe cubemaps"
+				array_size = 4
+				texture_type = "textureCube"
+			}
+			{
+				type = "sampler"
+				name = "IBL probe samplers"
+				array_size = 4
+				sampler_type = "samplerCube"
+			}
+		]
+	}
+	{
+		name = "terrain shader chunk binding set"
+		comment = "FIXME: generate one binding instance per terrain material combo."
+		max_instance_count = 1024
+		bindings = [
+			{
+				type = "texture"
+				name = "splatmap"
+				array_size = 0
+				texture_type = "texture2D"
+			}
+			{
+				type = "sampler"
+				name = "splatmap_sampler"
+				array_size = 0
+				sampler_type = "sampler2D"
+			}
+			{
+				type = "texture"
+				name = "albedo_textures"
+				array_size = 5
+				texture_type = "texture2D"
+			}
+			{
+				type = "sampler"
+				name = "albedo_sampler"
+				array_size = 0
+				sampler_type = "sampler2D"
+			}
+			{
+				type = "texture"
+				name = "normal_textures"
+				array_size = 5
+				texture_type = "texture2D"
+			}
+			{
+				type = "sampler"
+				name = "normal_sampler"
+				array_size = 0
+				sampler_type = "sampler2D"
+			}
+		]
+	}
+]

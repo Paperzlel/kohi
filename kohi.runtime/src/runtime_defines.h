@@ -16,3 +16,5 @@
 #define SHADER_NAME_RUNTIME_SHADOW_TERRAIN "Shader.Shadow_Terrain"
 
 #define SHADER_NAME_RUNTIME_SKYBOX "Shader.Skybox"
+
+#define SHADER_NAME_RUNTIME_HF_TERRAIN "Shader.HF_Terrain"

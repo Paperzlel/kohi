@@ -399,7 +399,7 @@ typedef struct renderer_backend_interface {
 
 	/**
 	 * @brief Sets depth bias factors and clamp dynamically.
-	 * 
+	 *
 	 * @param backend A pointer to the renderer backend interface.
 	 * @param constant_factor A scalar factor controlling the constant depth value added to each fragment.
 	 * @param clamp The maximum (or minimum) depth bias of a fragment.
@@ -409,7 +409,7 @@ typedef struct renderer_backend_interface {
 
 	/**
 	 * @brief Enables/disables depth bias.
-	 * 
+	 *
 	 * @param backend A pointer to the renderer backend interface.
 	 * @param enabled True to enable; otherwise disable.
 	 */
@@ -490,7 +490,7 @@ typedef struct renderer_backend_interface {
 	 * @param pixels The raw image data to be written.
 	 * @returns True on success; otherwise false.
 	 */
-	b8 (*texture_write_data)(struct renderer_backend_interface* backend, ktexture t, u32 offset, u32 size, const u8* pixels, b8 include_in_frame_workload);
+	b8 (*texture_write_data)(struct renderer_backend_interface* backend, ktexture t, u32 bpp, u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth, const u8* pixels, b8 include_in_frame_workload);
 
 	/**
 	 * @brief Reads the given data from the provided texture.

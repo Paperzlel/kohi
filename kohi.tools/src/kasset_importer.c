@@ -196,7 +196,8 @@ b8 import_all_from_manifest(const char* manifest_path, kimport_flag_bits flags) 
 				// Always assume y should be flipped on import.
 				b8 flip_y = true;
 				// NOTE: When importing this way, always use the pixel format as provided by the asset.
-				kpixel_format output_format = KPIXEL_FORMAT_UNKNOWN;
+				// HACK: Overriding this for now.
+				kpixel_format output_format = KPIXEL_FORMAT_RGBA8;
 
 				if (!source_image_2_kbi(asset->source_path, asset->path, flip_y, output_format)) {
 					goto import_all_from_manifest_cleanup;

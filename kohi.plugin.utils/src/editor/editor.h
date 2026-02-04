@@ -34,6 +34,7 @@ typedef enum editor_mode {
 	EDITOR_MODE_SCENE,
 	EDITOR_MODE_ENTITY,
 	EDITOR_MODE_TREE,
+	EDITOR_MODE_HF_TERRAIN,
 	EDITOR_MODE_ASSETS
 } editor_mode;
 
@@ -41,6 +42,14 @@ typedef struct keditor_gizmo_pass_data {
 	kshader gizmo_shader;
 	u32 set0_instance_id;
 } keditor_gizmo_pass_data;
+
+typedef enum hf_terrain_edit_mode {
+	HF_TERRAIN_EDIT_MODE_PAINT,
+	HF_TERRAIN_EDIT_MODE_ELEVATION,
+	HF_TERRAIN_EDIT_MODE_CHUNK,
+	HF_TERRAIN_EDIT_MODE_REMOVE,
+	HF_TERRAIN_EDIT_MODE_COUNT
+} hf_terrain_edit_mode;
 
 typedef struct editor_state {
 	// Editor camera
@@ -85,6 +94,7 @@ typedef struct editor_state {
 	kui_control mode_entity_button;
 	kui_control mode_scene_button;
 	kui_control mode_tree_button;
+	kui_control mode_hf_terrain_button;
 	kui_control view_debug_checkbox;
 	kui_control view_bvh_checkbox;
 	kui_control view_grid_checkbox;
@@ -135,6 +145,16 @@ typedef struct editor_state {
 	kui_control tree_inspector_title;
 	kui_control tree_scrollable_control;
 	kui_control tree_content_container;
+
+	// HF Terrain window
+	hf_terrain_edit_mode hft_edit_mode;
+	f32 hf_terrain_window_width;
+	kui_control hf_terrain_bg_panel;
+	kui_control hf_terrain_title;
+	kui_control hft_mode_paint_checkbox;
+	kui_control hft_mode_elevation_checkbox;
+	kui_control hft_mode_chunk_checkbox;
+	kui_control hft_mode_remove_checkbox;
 
 } editor_state;
 

@@ -1,4 +1,5 @@
 #include "kforward_renderer.h"
+#include "world/heightfield_terrain.h"
 
 #include <core/engine.h>
 #include <core/frame_data.h>
@@ -74,6 +75,50 @@ typedef struct depth_prepass_global_ubo {
 typedef struct depth_prepass_immediate_data {
 	u32 transform_index;
 } depth_prepass_immediate_data;
+
+// NOTE: Heightfield terrain stuff.
+typedef struct hf_terrain_global_ubo {
+	mat4 views[KMATERIAL_UBO_MAX_VIEWS];
+	mat4 projection;
+
+	mat4 directional_light_spaces[KMATERIAL_UBO_MAX_SHADOW_CASCADES]; // 256 bytes
+	vec4 view_positions[KMATERIAL_UBO_MAX_VIEWS];					  // indexed by in_dto.view_index
+	vec4 cascade_splits;											  // 16 bytes
+
+	f32 delta_time;
+	f32 game_time;
+	u32 render_mode;
+	u32 use_pcf;
+
+	// Shadow settings
+	f32 shadow_bias;
+	f32 shadow_distance;
+	f32 shadow_fade_distance;
+	f32 shadow_split_mult;
+
+	vec3 fog_colour;
+	f32 fog_start;
+	vec3 padding;
+	f32 fog_end;
+} hf_terrain_global_ubo;
+
+typedef struct hf_terrain_immediate_data {
+	// bytes 0-15
+	u32 view_index;
+	u32 projection_index;
+	u32 dir_light_index;
+	u32 unused;
+
+	// bytes 16-31
+	// Index into the global point lights array. Up to 16 indices as u8s packed into 2 uints.
+	uvec2 packed_point_light_indices; // 8 bytes
+	u32 num_p_lights;
+	// Index into global irradiance cubemap texture array
+	u32 irradiance_cubemap_index;
+
+	// bytes 32-47
+	vec4 clipping_plane;
+} hf_terrain_immediate_data;
 
 b8 kforward_renderer_create(ktexture colour_buffer, ktexture depth_stencil_buffer, kforward_renderer* out_renderer) {
 	KASSERT_DEBUG(out_renderer);
@@ -161,7 +206,12 @@ b8 kforward_renderer_create(ktexture colour_buffer, ktexture depth_stencil_buffe
 
 		out_renderer->forward_pass.sb_shader_set0_instance_id = kshader_acquire_binding_set_instance(out_renderer->forward_pass.sb_shader, 0);
 
-		out_renderer->forward_pass.default_cube_texture = texture_acquire_sync(kname_create(DEFAULT_CUBE_TEXTURE_NAME));
+		out_renderer->forward_pass.default_cube_texture = texture_cubemap_acquire_sync(kname_create(DEFAULT_CUBE_TEXTURE_NAME));
+
+		// Load Heightfield Terrain shader.
+		out_renderer->forward_pass.hf_terrain_shader = kshader_system_get(kname_create(SHADER_NAME_RUNTIME_HF_TERRAIN), kname_create(PACKAGE_NAME_RUNTIME));
+		KASSERT_DEBUG(out_renderer->forward_pass.hf_terrain_shader != KSHADER_INVALID);
+		out_renderer->forward_pass.shader_set0_instance_id = kshader_acquire_binding_set_instance(out_renderer->forward_pass.hf_terrain_shader, 0);
 	}
 
 #if KOHI_DEBUG
@@ -318,7 +368,16 @@ static b8 scene_pass(
 	const kscene_pass_render_data* pass_data,
 	u32 water_plane_count,
 	const kforward_pass_water_plane_render_data* water_planes,
-	b8 do_depth_prepass) {
+	b8 do_depth_prepass,
+	renderer_debug_view_mode view_mode) {
+
+	// In wireframe mode, don't allow depth prepass so that all objects can be seen.
+	if (view_mode == RENDERER_VIEW_MODE_WIREFRAME) {
+		do_depth_prepass = false;
+	}
+
+	// HACK: turning off depth prepass for now.
+	do_depth_prepass = false;
 
 	// Clear the textures
 	renderer_clear_colour(renderer->renderer_state, colour_handle);
@@ -476,11 +535,116 @@ static b8 scene_pass(
 	} // End skybox render.
 
 	// NOTE: Begin rendering the scene
+	renderer_begin_rendering(renderer->renderer_state, p_frame_data, vp_rect, 1, &colour_handle, depth_handle, 0);
+
+	// Heightfield Terrain
+	{
+		renderer_begin_debug_label("scene - HF terrain", (vec3){0.5f, 1.0f, 0.5f});
+
+		set_render_state_defaults(vp_rect);
+
+		// Ensure valid depth state. TODO: Do depth prepass for terrain.
+		renderer_set_depth_test_enabled(true);
+		renderer_set_depth_write_enabled(true);
+
+		// Ensure valid culling.
+		renderer_cull_mode_set(RENDERER_CULL_MODE_BACK);
+
+		kshader shader = renderer->forward_pass.hf_terrain_shader;
+		KASSERT_DEBUG(kshader_system_use(shader, VERTEX_LAYOUT_INDEX_STATIC));
+
+		// Ensure wireframe mode is (un)set.
+		KASSERT_DEBUG(kshader_system_set_wireframe(shader, view_mode == RENDERER_VIEW_MODE_WIREFRAME));
+
+		kmaterial_settings_ubo* settings = &renderer->material_renderer->settings;
+
+		// Upload the global UBO data
+		hf_terrain_global_ubo global_ubo_data = {
+			.projection = projection,
+			.fog_colour = settings->fog_colour,
+			.fog_start = settings->fog_start,
+			.fog_end = settings->fog_end,
+			.game_time = settings->game_time,
+			.delta_time = settings->delta_time,
+			.render_mode = settings->render_mode,
+			.shadow_bias = settings->shadow_bias,
+			.shadow_distance = settings->shadow_distance,
+			.shadow_split_mult = settings->shadow_split_mult,
+			.shadow_fade_distance = settings->shadow_fade_distance,
+			.cascade_splits = settings->cascade_splits};
+		for (u8 i = 0; i < view_count; ++i) {
+			global_ubo_data.views[i] = views[i];
+			global_ubo_data.view_positions[i] = settings->view_positions[i];
+		}
+		for (u8 i = 0; i < KMATERIAL_UBO_MAX_SHADOW_CASCADES; ++i) {
+			global_ubo_data.directional_light_spaces[i] = settings->directional_light_spaces[i];
+		}
+		kshader_set_binding_data(shader, 0, renderer->forward_pass.shader_set0_instance_id, 0, 0, &global_ubo_data, sizeof(hf_terrain_global_ubo));
+		kshader_set_binding_texture(shader, 0, renderer->forward_pass.shader_set0_instance_id, 2, 0, renderer->shadow_pass.shadow_tex);
+		// Irradience textures provided by probes around in the world.
+		for (u32 i = 0; i < KMATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT; ++i) {
+			ktexture t = irradiance_cubemap_textures[i] != INVALID_KTEXTURE ? irradiance_cubemap_textures[i] : renderer->forward_pass.default_cube_texture;
+			if (!texture_is_loaded(t)) {
+				t = renderer->forward_pass.default_cube_texture;
+			}
+			kshader_set_binding_texture(shader, 0, renderer->forward_pass.shader_set0_instance_id, 4, i, t);
+		}
+		kshader_apply_binding_set(shader, 0, renderer->forward_pass.shader_set0_instance_id);
+
+		// Draw the terrain chunks. This assumes chunks have already been culled at this point.
+		for (u32 b = 0; b < pass_data->hf_terrain_data.block_count; ++b) {
+			hf_terrain_block_render_data* block_data = &pass_data->hf_terrain_data.blocks[b];
+
+			for (u32 c = 0; c < block_data->chunk_count; ++c) {
+				hf_terrain_chunk_render_data* chunk_data = &block_data->chunks[c];
+
+				// Splatmap
+				kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 0, 0, chunk_data->splatmap);
+				ksampler_backend splatmap_sampler = renderer_generic_sampler_get(renderer->renderer_state, SHADER_GENERIC_SAMPLER_LINEAR_CLAMP);
+				kshader_set_binding_sampler(shader, 1, chunk_data->shader_instance_id, 1, 0, splatmap_sampler);
+
+				// Apply textures per material.
+				for (u8 m = 0; m < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++m) {
+					kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 2, m, chunk_data->albedo_textures[m]);
+					kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 4, m, chunk_data->normal_textures[m]);
+				}
+				// Ensure the binding set is applied.
+				kshader_apply_binding_set(shader, 1, chunk_data->shader_instance_id);
+
+				// Immediate data.
+				hf_terrain_immediate_data immediate = {
+					.view_index = view_index,
+					.clipping_plane = clipping_plane,
+					.num_p_lights = chunk_data->bound_point_light_count,
+					.irradiance_cubemap_index = 0, // FIXME: hardcoded
+				};
+
+				// Pack the point light indices
+				immediate.packed_point_light_indices.elements[0] = pack_u8_into_u32(chunk_data->bound_point_light_indices[0], chunk_data->bound_point_light_indices[1], chunk_data->bound_point_light_indices[2], chunk_data->bound_point_light_indices[3]);
+				immediate.packed_point_light_indices.elements[1] = pack_u8_into_u32(chunk_data->bound_point_light_indices[4], chunk_data->bound_point_light_indices[5], chunk_data->bound_point_light_indices[6], chunk_data->bound_point_light_indices[7]);
+
+				kshader_set_immediate_data(shader, &immediate, sizeof(hf_terrain_immediate_data));
+
+				// Draw it.
+				if (!renderer_renderbuffer_draw(renderer->renderer_state, renderer->standard_vertex_buffer, chunk_data->vertex_buffer_offset, chunk_data->vertex_count, 0, true)) {
+					KERROR("Renderer HF Terrain: failed to draw vertex buffer.");
+					return false;
+				}
+				if (!renderer_renderbuffer_draw(renderer->renderer_state, renderer->index_buffer, pass_data->hf_terrain_data.index_buffer_offset, pass_data->hf_terrain_data.index_count, 0, false)) {
+					KERROR("Renderer HF Terrain: failed to draw index buffer.");
+					return false;
+				}
+			}
+		}
+
+		/* renderer_end_rendering(renderer->renderer_state, p_frame_data); */
+		renderer_end_debug_label();
+	}
 
 	renderer_begin_debug_label("scene - meshes", (vec3){0.0f, 1.0f, 1.0f});
 
 	// Mesh begin render
-	renderer_begin_rendering(renderer->renderer_state, p_frame_data, vp_rect, 1, &colour_handle, depth_handle, 0);
+	/* renderer_begin_rendering(renderer->renderer_state, p_frame_data, vp_rect, 1, &colour_handle, depth_handle, 0); */
 	set_render_state_defaults(vp_rect);
 
 	// Ensure valid depth state.
@@ -1027,7 +1191,8 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 					&plane->refraction_pass,
 					0, // water_plane_count
 					0,
-					false); // water_planes
+					false,
+					render_data->forward_data.render_mode); // water_planes
 
 				renderer_end_debug_label();
 			} // end refract
@@ -1066,7 +1231,8 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 					&plane->reflection_pass,
 					0,
 					0,
-					false);
+					false,
+					render_data->forward_data.render_mode);
 
 				renderer_end_debug_label();
 			} // end reflect
@@ -1108,7 +1274,8 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 				&render_data->forward_data.standard_pass,
 				render_data->forward_data.water_plane_count,
 				render_data->forward_data.water_planes,
-				true);
+				true,
+				render_data->forward_data.render_mode);
 
 			renderer_end_debug_label();
 		} // end 'standard' pass

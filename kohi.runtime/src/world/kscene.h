@@ -11,6 +11,7 @@
 #include "systems/kmodel_system.h"
 #include "systems/light_system.h"
 #include "utils/kcolour.h"
+#include "world/heightfield_terrain.h"
 #include "world/world_types.h"
 
 struct kscene;
@@ -80,6 +81,7 @@ KAPI void kscene_set_active_camera(struct kscene* scene, kcamera camera);
 KAPI void kscene_get_shadow_properties(struct kscene* scene, f32* out_shadow_dist, f32* out_shadow_fade_distance, f32* out_shadow_split_mult, f32* out_shadow_bias);
 
 KAPI b8 kscene_raycast(struct kscene* scene, const struct ray* r, struct raycast_result* out_result);
+KAPI b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, hf_block* out_block, hf_chunk* out_chunk, vec3* out_pos, vec3* out_normal);
 
 KAPI kentity kscene_get_entity_by_name(struct kscene* scene, kname name);
 
@@ -198,6 +200,12 @@ KAPI hm_terrain_render_data* kscene_get_hm_terrain_render_data(
 	kfrustum* frustum,
 	u32 flags,
 	u16* out_terrain_count);
+
+KAPI hf_terrain_render_data kscene_get_hf_terrain_render_data(
+	struct kscene* scene,
+	struct frame_data* p_frame_data,
+	kfrustum* frustum,
+	u32 flags);
 
 #if KOHI_DEBUG
 KAPI kdebug_geometry_render_data* kscene_get_debug_render_data(

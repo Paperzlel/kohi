@@ -219,7 +219,7 @@ KAPI void renderer_set_depth_write_enabled(b8 enabled);
 
 /**
  * @brief Sets depth bias factors and clamp dynamically.
- * 
+ *
  * @param constant_factor A scalar factor controlling the constant depth value added to each fragment.
  * @param clamp The maximum (or minimum) depth bias of a fragment.
  * @param slope_factor A scalar factor applied to a fragment’s slope in depth bias calculations.
@@ -228,7 +228,7 @@ KAPI void renderer_set_depth_bias(f32 constant_factor, f32 clamp, f32 slope_fact
 
 /**
  * @brief Enables/disables depth bias.
- * 
+ *
  * @param enabled True to enable; otherwise disable.
  */
 KAPI void renderer_set_depth_bias_enabled(b8 enabled);
@@ -325,7 +325,7 @@ KAPI b8 renderer_texture_resize(struct renderer_system_state* state, ktexture t,
  * @param pixels The raw image data to be written.
  * @returns True on success; otherwise false.
  */
-KAPI b8 renderer_texture_write_data(struct renderer_system_state* state, ktexture t, u32 offset, u32 size, const u8* pixels);
+KAPI b8 renderer_texture_write_data(struct renderer_system_state* state, ktexture t, u32 bpp, u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth, const u8* pixels);
 
 /**
  * @brief Reads the given data from the provided texture.

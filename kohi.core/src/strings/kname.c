@@ -5,6 +5,7 @@
 #include "logger.h"
 #include "strings/kstring.h"
 #include "utils/crc64.h"
+#include <stdarg.h>
 
 // Global lookup table for saved names.
 static bt_node* string_lookup = 0;
@@ -43,6 +44,22 @@ kname kname_create(const char* str) {
 		}
 	}
 	return name;
+}
+
+kname kname_format(const char* format, ...) {
+	if (!format) {
+		return 0;
+	}
+
+	__builtin_va_list arg_ptr;
+	va_start(arg_ptr, format);
+	char* result = string_format_v(format, arg_ptr);
+	va_end(arg_ptr);
+
+	kname new_kname = kname_create(result);
+	string_free(result);
+
+	return new_kname;
 }
 
 const char* kname_string_get(kname name) {

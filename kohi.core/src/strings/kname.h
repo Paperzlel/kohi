@@ -49,6 +49,18 @@ typedef u64 kname;
 KAPI kname kname_create(const char* str);
 
 /**
+ * Creates a new kname using the provided format string and parameters. If formatting is not required,
+ * use kname_create() instead. Automatically handles string free internally.
+ *
+ * @see string_format in kstring.h.
+ *
+ * @param format The format string.
+ * @param ... The format arguments.
+ * @returns A new kname created using the formatted string.
+ */
+KAPI kname kname_format(const char* format, ...);
+
+/**
  * Attempts to get the original string associated with the given kname.
  * This will only work if the name was originally registered in the internal
  * global lookup table. Also returns 0/null if INVALID_KNAME/0 is provided as the name.

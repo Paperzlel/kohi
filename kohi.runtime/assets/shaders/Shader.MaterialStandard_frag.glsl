@@ -395,7 +395,7 @@ void main() {
         float water_distance = 2.0 * near * far / (far + near - (2.0 * depth - 1.0) * (far - near));
         water_depth = floor_distance - water_distance;
 
-        float edge_depth_falloff = 0.25;
+        float edge_depth_falloff = 0.5;
         float depth_influence = clamp((water_depth / edge_depth_falloff), 0.0, 1.0);
 
         // Distort further
@@ -418,9 +418,11 @@ void main() {
 
         // Calculate the fresnel effect.
         float fresnel_factor = dot(normalize(in_dto.world_to_camera), normal);
+        // float fresnel_factor = dot(normal, normalize(in_dto.world_to_camera));
+        fresnel_factor = 1.0-(0.03 + (1.0 - 0.03) * pow(1.0 - fresnel_factor, 5.0));
+        fresnel_factor = pow(fresnel_factor, 0.5);
         fresnel_factor = clamp(fresnel_factor, 0.0, 1.0);
-        // fresnel_factor = 0.03 + (1.0 - 0.03) * pow(1.0 - fresnel_factor, 5.0);
-        // float edge_depth_falloff = 0.75;
+        //  edge_depth_falloff = 0.5;
         // float depth_influence = clamp((water_depth / edge_depth_falloff), 0.0, 1.0);
 
         out_colour = mix(reflect_colour, refract_colour, fresnel_factor);
@@ -428,14 +430,14 @@ void main() {
         
         // out_colour = mix(reflect_colour, refract_colour, clamp(1.0 - (water_depth / edge_depth_falloff), 0.0, 1.0));
         vec4 tint = vec4(0.0, 0.3, 0.5, 1.0); // TODO: configurable.
-        float tint_strength = 0.5; // TODO: configurable.
-        out_colour = mix(out_colour, tint, tint_strength * (depth_influence));
+        float tint_strength = 0.75; // TODO: configurable.
+        // out_colour = mix(out_colour, tint, tint_strength * (depth_influence));
 
         albedo = out_colour.rgb;
 
         // Falloff depth of the water at the edge.
-        // float edge_depth_falloff = 0.5; // TODO: configurable
-        // alpha = 1.0;//clamp(water_depth / edge_depth_falloff, 0.0, 1.0);
+        edge_depth_falloff = 0.5; // TODO: configurable
+        alpha = clamp(water_depth / edge_depth_falloff, 0.0, 1.0);
     }
 
     // Shadows: 1.0 means NOT in shadow, which is the default.

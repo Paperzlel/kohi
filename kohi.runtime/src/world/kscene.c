@@ -36,6 +36,7 @@
 #include <utils/kcolour.h>
 #include <world/world_types.h>
 
+#include "world/heightfield_terrain.h"
 #include "world/world_utils.h"
 
 #define kSCENE_CURRENT_VERSION 1
@@ -340,6 +341,8 @@ typedef struct kscene {
 	// darray of active collision shape states.
 	collision_shape_state* col_shape_states;
 
+	hf_terrain hf;
+
 #if KOHI_DEBUG
 	// Darray of debug render data.
 	kscene_debug_data* debug_datas;
@@ -499,6 +502,9 @@ struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callbac
 		return KNULL;
 	}
 
+	// HACK: Get this from config instead.
+	scene->hf = hf_terrain_generate(1, 1);
+
 	return scene;
 }
 
@@ -631,6 +637,9 @@ void kscene_destroy(struct kscene* scene) {
 	scene->bvh_debug_pool = KNULL;
 	scene->bvh_debug_vertex_pool = KNULL;
 	scene->bvh_debug_pool_size = 0;
+
+	// HACK: move this to a proper location.
+	hf_terrain_destroy(&scene->hf);
 
 #endif
 
@@ -1269,6 +1278,13 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 				p_frame_data->drawn_mesh_count += render_data->forward_data.standard_pass.terrains[i].chunk_count;
 			}
 
+			// Heightfield Terrain
+			render_data->forward_data.standard_pass.hf_terrain_data = kscene_get_hf_terrain_render_data(
+				scene,
+				p_frame_data,
+				KNULL, // FIXME: frustum culling disabled for now
+				KSCENE_RENDER_DATA_FLAG_NONE);
+
 			// Obtain the water plane render datas and setup pass data for each.
 			kwater_plane_render_data* water_planes = kscene_get_water_plane_render_data(
 				scene,
@@ -1304,6 +1320,9 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 						// Heightmap terrain.
 						wp_data->refraction_pass.terrain_count = render_data->forward_data.standard_pass.terrain_count;
 						wp_data->refraction_pass.terrains = render_data->forward_data.standard_pass.terrains;
+
+						// Heightfield terrain
+						wp_data->refraction_pass.hf_terrain_data = render_data->forward_data.standard_pass.hf_terrain_data;
 					}
 
 					// reflection pass data
@@ -1361,6 +1380,13 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 							0, // FIXME: frustum culling disabled for now.
 							0,
 							&wp_data->reflection_pass.terrain_count);
+
+						// Heightfield Terrain
+						wp_data->reflection_pass.hf_terrain_data = kscene_get_hf_terrain_render_data(
+							scene,
+							p_frame_data,
+							KNULL, // FIXME: frustum culling disabled for now
+							KSCENE_RENDER_DATA_FLAG_NONE);
 					}
 				}
 			} // end water planes
@@ -1665,6 +1691,49 @@ b8 kscene_raycast(struct kscene* scene, const ray* r, struct raycast_result* out
 		*out_result = bvh_raycast(&scene->bvh_tree, r, on_raycast_hit, scene);
 		return true;
 	}
+	return false;
+}
+
+b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, hf_block* out_block, hf_chunk* out_chunk, vec3* out_pos, vec3* out_normal) {
+	// FIXME: brute forcing this for now, will handle better in the future.
+
+	if (!scene || !scene->hf.blocks) {
+		return false;
+	}
+
+	u32 block_count = scene->hf.block_count_z * scene->hf.block_count_x;
+	for (u32 b = 0; b < block_count; ++b) {
+
+		f32 tmin = 0.0f;
+		f32 tmaxi = r->max_distance;
+		b8 block_hit = ray_intersects_aabb(scene->hf.blocks[b].aabb, r->origin, r->direction, r->max_distance, &tmin, &tmaxi);
+		if (block_hit) {
+			// Iterate the chunks and check for a aabb hit there.
+			for (u32 c = 0; c < HF_BLOCK_CHUNK_COUNT; ++c) {
+				tmin = 0.0f;
+				tmaxi = r->max_distance;
+				b8 chunk_hit = ray_intersects_aabb(scene->hf.blocks[b].chunks[c].aabb, r->origin, r->direction, r->max_distance, &tmin, &tmaxi);
+				if (chunk_hit) {
+					u64 vertex_offset = (scene->hf.blocks[b].chunks[c].vertex_buffer_offset - scene->hf.base_vertex_buffer_offset) / sizeof(hf_vertex_3d);
+					triangle tri;
+					vec3 hit_pos;
+					vec3 hit_normal;
+					b8 triangle_hit = ray_pick_triangle(r, false, HF_CHUNK_VERTEX_COUNT, sizeof(hf_vertex_3d), scene->hf.vertices + vertex_offset, HF_INDEX_COUNT, scene->hf.indices, &tri, &hit_pos, &hit_normal);
+					if (triangle_hit) {
+						// Collision! Yay
+						/* KTRACE("Terrain hit: pos=%V3.3, normal=%V3.3", &hit_pos, &hit_normal); */
+						*out_block = scene->hf.blocks[b];
+						*out_chunk = scene->hf.blocks[b].chunks[c];
+						*out_pos = hit_pos;
+						*out_normal = hit_normal;
+						return true;
+					}
+				}
+			}
+		}
+	}
+
+	KTRACE("Nothing hit.");
 	return false;
 }
 
@@ -2696,6 +2765,57 @@ hm_terrain_render_data* kscene_get_hm_terrain_render_data(
 	// FIXME: implement this
 
 	return 0;
+}
+
+hf_terrain_render_data kscene_get_hf_terrain_render_data(
+	struct kscene* scene,
+	struct frame_data* p_frame_data,
+	kfrustum* frustum,
+	u32 flags) {
+
+	hf_terrain_render_data data = {0};
+
+	data.index_count = HF_INDEX_COUNT;
+	data.index_buffer_offset = scene->hf.index_buffer_offset;
+	data.block_count = scene->hf.block_count_z * scene->hf.block_count_x;
+	data.blocks = p_frame_data->allocator.allocate(sizeof(hf_terrain_block_render_data) * data.block_count);
+
+	// TODO: frustum culling.
+	for (u16 i = 0; i < data.block_count; ++i) {
+		hf_block* block = &scene->hf.blocks[i];
+		hf_terrain_block_render_data* block_rd = &data.blocks[i];
+
+		block_rd->chunk_count = HF_BLOCK_CHUNK_COUNT;
+		block_rd->chunks = p_frame_data->allocator.allocate(sizeof(hf_terrain_chunk_render_data) * block_rd->chunk_count);
+
+		for (u16 c = 0; c < block_rd->chunk_count; ++c) {
+			hf_chunk* chunk = &block->chunks[c];
+			hf_terrain_chunk_render_data* chunk_rd = &block_rd->chunks[c];
+
+			// TODO: LOD
+			chunk_rd->vertex_count = HF_CHUNK_VERTEX_COUNT;
+			chunk_rd->vertex_buffer_offset = chunk->vertex_buffer_offset;
+
+			chunk_rd->shader_instance_id = chunk->shader_instance_id;
+
+			chunk_rd->splatmap = chunk->splatmap;
+
+			for (u8 m = 0; m < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++m) {
+				chunk_rd->albedo_textures[m] = chunk->albedo_textures[m];
+				chunk_rd->normal_textures[m] = chunk->normal_textures[m];
+			}
+
+			// FIXME: Pick the closest lights that actually interact with this geometry and add them
+			// to the list. For now this is just adding the closest 8.
+			chunk_rd->bound_point_light_count = KMIN(darray_length(scene->point_lights), KMATERIAL_MAX_BOUND_POINT_LIGHTS);
+			for (u8 l = 0; l < chunk_rd->bound_point_light_count; ++l) {
+				// TODO: distance check.
+				chunk_rd->bound_point_light_indices[l] = scene->point_lights[l].handle;
+			}
+		}
+	}
+
+	return data;
 }
 
 #if KOHI_DEBUG

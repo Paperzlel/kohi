@@ -109,7 +109,8 @@ void vulkan_image_copy_from_buffer(
 	vulkan_context* context,
 	vulkan_image* image,
 	VkBuffer buffer,
-	u64 offset,
+	u64 buffer_offset,
+	u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth,
 	vulkan_command_buffer* command_buffer);
 
 /**

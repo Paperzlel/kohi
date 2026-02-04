@@ -451,11 +451,17 @@ ktexture texture_acquire_with_options(ktexture_load_options options, void* liste
 		state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], KTEXTURE_FLAG_HAS_TRANSPARENCY, has_transparency);
 
 		// Write the image asset data to the texture.
-		u32 texture_data_offset = 0; // NOTE: The only time this potentially could be nonzero is when explicitly loading a layer of texture data.
 		b8 write_result = renderer_texture_write_data(
 			state_ptr->renderer,
 			t,
-			texture_data_offset, options.pixel_array_size, options.pixel_data);
+			32,
+			0,
+			0,
+			0,
+			state_ptr->widths[t],
+			state_ptr->heights[t],
+			1,
+			options.pixel_data);
 
 		if (!write_result) {
 			KERROR("%s - Failed to write texture data resource '%s'.", __FUNCTION__, options.image_asset_name);
@@ -556,7 +562,7 @@ ktexture texture_acquire_with_options_sync(ktexture_load_options options) {
 			}
 			if (!assets[i]) {
 				// NOTE: Continue to load other images instead of booting here.
-				KERROR("%s - Asset named '%s' does not exist, thus a texture cannot be loaded from it.", __FUNCTION__, options.image_asset_name);
+				KERROR("%s - Asset named '%k' does not exist, thus a texture cannot be loaded from it.", __FUNCTION__, options.image_asset_name);
 			}
 		}
 
@@ -607,11 +613,17 @@ ktexture texture_acquire_with_options_sync(ktexture_load_options options) {
 
 	// Write the image asset/pixel data to the texture if it exists.
 	if (all_pixel_size && all_pixels) {
-		u32 texture_data_offset = 0; // NOTE: The only time this potentially could be nonzero is when explicitly loading a layer of texture data.
 		b8 write_result = renderer_texture_write_data(
 			state_ptr->renderer,
 			t,
-			texture_data_offset, all_pixel_size, all_pixels);
+			32,
+			0,
+			0,
+			0,
+			state_ptr->widths[t],
+			state_ptr->heights[t],
+			1,
+			all_pixels);
 
 		if (!write_result) {
 			KERROR("%s - Failed to write texture data resource '%s'.", __FUNCTION__, options.image_asset_name);
@@ -672,9 +684,9 @@ b8 texture_resize(ktexture t, u32 width, u32 height, b8 regenerate_internal_data
 	return false;
 }
 
-b8 texture_write_data(ktexture t, u32 offset, u32 size, void* data) {
+b8 texture_write_data(ktexture t, u32 bpp, u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth, void* data) {
 	if (t) {
-		return renderer_texture_write_data(state_ptr->renderer, t, offset, size, data);
+		return renderer_texture_write_data(state_ptr->renderer, t, bpp, px_x, px_y, px_z, width, height, depth, data);
 	}
 	return false;
 }
@@ -828,6 +840,8 @@ static b8 create_default_textures(texture_system_state* state) {
 				u64 index = (row * 16) + col;
 				u64 index_bpp = index * channels;
 				// Set blue, z-axis by default and alpha.
+				normal_pixels[index_bpp + 0] = 128;
+				normal_pixels[index_bpp + 1] = 128;
 				normal_pixels[index_bpp + 2] = 255;
 				normal_pixels[index_bpp + 3] = 255;
 			}
@@ -1278,11 +1292,17 @@ static b8 texture_apply_asset_data(ktexture t, kname name, const ktexture_load_o
 	state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], KTEXTURE_FLAG_HAS_TRANSPARENCY, has_transparency);
 
 	// Write the image asset data to the texture.
-	u32 texture_data_offset = 0; // NOTE: The only time this potentially could be nonzero is when explicitly loading a layer of texture data.
 	b8 write_result = renderer_texture_write_data(
 		state_ptr->renderer,
 		t,
-		texture_data_offset, all_pixel_size, all_pixels);
+		32,
+		0,
+		0,
+		0,
+		state_ptr->widths[t],
+		state_ptr->heights[t],
+		1,
+		all_pixels);
 
 	if (!write_result) {
 		KERROR("%s - Failed to write texture data resource '%s'.", __FUNCTION__, kname_string_get(name));

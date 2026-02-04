@@ -460,7 +460,7 @@ b8 ray_intersects_triangle(const ray* r, const triangle* t) {
 }
 
 vec3 get_pos_from_vector_at(u32 vertex_count, u32 vertex_element_size, void* vertices, u32 index) {
-	vec3* v = (vec3*)(((u8*)vertices) + (vertex_element_size * index));
+	vec3* v = (vec3*)(((u64)vertices) + (vertex_element_size * index));
 	return *v;
 }
 
