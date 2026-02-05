@@ -15,6 +15,8 @@
 #define EDITOR_AXIS_COLOUR_B \
 	(colour4){0.5f, 0.5f, 1.0f, 1.0f}
 
+#define EDITOR_HFT_PAINT_BRUSH_MAX_SIZE 64
+
 #include "editor/editor_gizmo.h"
 
 typedef struct keditor_gizmo_pass_render_data {
@@ -95,9 +97,12 @@ typedef struct editor_state {
 	kui_control mode_scene_button;
 	kui_control mode_tree_button;
 	kui_control mode_hf_terrain_button;
+	kui_control view_label;
 	kui_control view_debug_checkbox;
 	kui_control view_bvh_checkbox;
 	kui_control view_grid_checkbox;
+	kui_control view_skybox_checkbox;
+	kui_control view_fog_checkbox;
 
 	// Scene Inspector window
 	f32 scene_inspector_width;
@@ -111,6 +116,7 @@ typedef struct editor_state {
 	kui_control scene_fog_colour_r_textbox;
 	kui_control scene_fog_colour_g_textbox;
 	kui_control scene_fog_colour_b_textbox;
+	kui_control scene_fog_colour_a_textbox;
 
 	// Entity Inspector window
 	f32 entity_inspector_width;
@@ -149,12 +155,30 @@ typedef struct editor_state {
 	// HF Terrain window
 	hf_terrain_edit_mode hft_edit_mode;
 	f32 hf_terrain_window_width;
+	f32 hf_terrain_right_col_x;
 	kui_control hf_terrain_bg_panel;
 	kui_control hf_terrain_title;
 	kui_control hft_mode_paint_checkbox;
 	kui_control hft_mode_elevation_checkbox;
 	kui_control hft_mode_chunk_checkbox;
 	kui_control hft_mode_remove_checkbox;
+
+	kui_control hft_mode_paint_content;
+	kui_control hft_paint_brush_diameter_textbox;
+	kui_control hft_paint_brush_strength_textbox;
+	kui_control hft_paint_brush_material_index_textbox;
+	kui_control hft_paint_brush_diameter_label;
+	kui_control hft_paint_brush_strength_label;
+	kui_control hft_paint_material_index_label;
+
+	kui_control hft_mode_elevation_content;
+	kui_control hft_mode_chunk_content;
+	kui_control hft_mode_remove_content;
+
+	// HF Paint state
+	u32 hft_paint_brush_diameter;
+	u8 hft_paint_brush_strength;
+	u8 hft_paint_material_index;
 
 } editor_state;
 

@@ -19,6 +19,8 @@ KAPI b8 kui_textbox_control_render(kui_state* state, kui_control self, struct fr
 
 KAPI const char* kui_textbox_text_get(kui_state* state, kui_control self);
 KAPI void kui_textbox_text_set(kui_state* state, kui_control self, const char* text);
+KAPI void kui_textbox_i64_set(kui_state* state, kui_control self, i64 i);
+KAPI void kui_textbox_f32_set(kui_state* state, kui_control self, f32 f);
 
 // Deletes text at cursor position. If a highlight range exists, the entire range is deleted.
 // Updates cursor position and highlight range accordingly.

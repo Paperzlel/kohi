@@ -280,7 +280,7 @@ typedef struct kscene {
 	f32 shadow_bias;
 
 	// Fog settings
-	colour3 fog_colour;
+	colour4 fog_colour;
 	f32 fog_near;
 	f32 fog_far;
 
@@ -445,14 +445,19 @@ struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callbac
 	debug_grid_initialize(&scene->grid);
 	debug_grid_load(&scene->grid);
 
-#endif
-
-#if KOHI_DEBUG
 	// Enable general debug
 	FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_ENABLED_BIT, true);
 	FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_BVH_ENABLED_BIT, false);
 	FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_GRID_ENABLED_BIT, true);
 #endif
+
+	// Enable rendering everything by default.
+	FLAG_SET(scene->flags, KSCENE_FLAG_RENDER_SKYBOX_BIT, true);
+	FLAG_SET(scene->flags, KSCENE_FLAG_RENDER_STATIC_MODELS_BIT, true);
+	FLAG_SET(scene->flags, KSCENE_FLAG_RENDER_ANIMATED_MODELS_BIT, true);
+	FLAG_SET(scene->flags, KSCENE_FLAG_RENDER_HF_TERRAIN_BIT, true);
+	FLAG_SET(scene->flags, KSCENE_FLAG_RENDER_WATER_PLANES_BIT, true);
+	FLAG_SET(scene->flags, KSCENE_FLAG_RENDER_FOG_BIT, true);
 
 	scene->root_entities = darray_create(kentity);
 
@@ -481,13 +486,6 @@ struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callbac
 	scene->debug_datas = darray_reserve(kscene_debug_data, 64);
 #endif
 
-// Default flags.
-#if KOHI_DEBUG
-	// Enable debug displays by default.
-	kscene_enable_debug(scene, true);
-	kscene_enable_debug_grid(scene, true);
-#endif
-
 	scene->name_lookup = KNULL;
 
 	// Create a camera to be used for reflections. Its properties don't matter much for now.
@@ -503,7 +501,7 @@ struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callbac
 	}
 
 	// HACK: Get this from config instead.
-	scene->hf = hf_terrain_generate(1, 1);
+	scene->hf = hf_terrain_generate(2, 2);
 
 	return scene;
 }
@@ -912,9 +910,15 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 		frame_allocator_int* frame_allocator = &p_frame_data->allocator;
 		kforward_renderer_render_data* render_data = p_frame_data->render_data;
 
-		render_data->forward_data.fog_colour = scene->fog_colour;
-		render_data->forward_data.fog_near = scene->fog_near;
-		render_data->forward_data.fog_far = scene->fog_far;
+		if (FLAG_GET(scene->flags, KSCENE_FLAG_RENDER_FOG_BIT)) {
+			render_data->forward_data.fog_colour = scene->fog_colour;
+			render_data->forward_data.fog_near = scene->fog_near;
+			render_data->forward_data.fog_far = scene->fog_far;
+		} else {
+			render_data->forward_data.fog_colour = vec4_zero();
+			render_data->forward_data.fog_near = 0.0f;
+			render_data->forward_data.fog_far = 99999999.9f;
+		}
 
 		// "Global" items used by multiple passes.
 		mat4 view = kcamera_get_view(current_camera);
@@ -924,12 +928,14 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 		rect_2di vp_rect = kcamera_get_vp_rect(current_camera);
 		f32 fov = kcamera_get_fov(current_camera);
 
-		f32 near = kcamera_get_near_clip(current_camera);
-		f32 far = scene->shadow_dist + scene->shadow_fade_dist;
-		f32 clip_range = far - near;
+		f32 near_clip = kcamera_get_near_clip(current_camera);
+		f32 far_clip = kcamera_get_far_clip(current_camera);
+		// Ensure the shadow map isn't including things the camera can't see.
+		f32 shadow_far = KMIN(scene->shadow_dist + scene->shadow_fade_dist, far_clip);
+		f32 clip_range = shadow_far - near_clip;
 
-		f32 min_z = near;
-		f32 max_z = near + clip_range;
+		f32 min_z = near_clip;
+		f32 max_z = near_clip + clip_range;
 		f32 range = max_z - min_z;
 		f32 ratio = max_z / min_z;
 		// Calculate cascade splits based on view camera frustum.
@@ -939,7 +945,7 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 			f32 log = min_z * kpow(ratio, p);
 			f32 uniform = min_z + range * p;
 			f32 d = render_data->forward_data.shadow_split_mult * (log - uniform) + uniform;
-			splits.elements[c] = (d - near) / clip_range;
+			splits.elements[c] = (d - near_clip) / clip_range;
 		}
 		// Default values to use in the event there is no directional light.
 		// These are required because the scene pass needs them.
@@ -967,7 +973,7 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 			vec3 light_dir = vec3_normalized(dir_light.direction);
 
 			// Get the view-projection matrix
-			mat4 shadow_dist_projection = mat4_perspective(fov, (f32)vp_rect.width / vp_rect.height, near, far);
+			mat4 shadow_dist_projection = mat4_perspective(fov, (f32)vp_rect.width / vp_rect.height, near_clip, shadow_far);
 			mat4 cam_view_proj = mat4_transposed(mat4_mul(view, shadow_dist_projection));
 			mat4 inv_view_proj = mat4_inverse(cam_view_proj);
 
@@ -1188,16 +1194,20 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 
 			render_data->forward_data.render_mode = render_mode;
 			render_data->forward_data.shadow_bias = scene->shadow_bias;
-			render_data->forward_data.shadow_distance = scene->shadow_dist;
+			// Ensure the shadow doesn't exceed the camera.
+			render_data->forward_data.shadow_distance = shadow_far; // scene->shadow_dist;
 			render_data->forward_data.shadow_fade_distance = scene->shadow_fade_dist;
 			render_data->forward_data.shadow_split_mult = scene->shadow_split_mult;
+			render_data->forward_data.near_clip = near_clip;
+			render_data->forward_data.far_clip = far_clip;
 
 			// SKYBOX
 			render_data->forward_data.skybox = kscene_get_skybox_render_data(scene);
+			render_data->forward_data.skybox.do_pass = FLAG_GET(scene->flags, KSCENE_FLAG_RENDER_SKYBOX_BIT);
 
 			// Pass over shadow map "camera" view and projection matrices (one per cascade).
 			for (u32 c = 0; c < render_data->shadow_data.cascade_count; c++) {
-				render_data->forward_data.cascade_splits[c] = (near + splits.elements[c] * clip_range) * 1.0f;
+				render_data->forward_data.cascade_splits[c] = (near_clip + splits.elements[c] * clip_range) * 1.0f;
 				render_data->forward_data.directional_light_spaces[c] = shadow_camera_view_projections[c];
 			}
 
@@ -1491,7 +1501,7 @@ kscene_flags kscene_get_flags(const struct kscene* scene) {
 	return scene->flags;
 }
 b8 kscene_get_flag(const struct kscene* scene, kscene_flag_bits flag) {
-	return FLAG_GET(scene->flags, flag);
+	return FLAG_GET(scene->flags, (u32)flag);
 }
 void kscene_set_flags(struct kscene* scene, kscene_flags flags) {
 	scene->flags = flags;
@@ -1510,10 +1520,10 @@ void kscene_set_name(struct kscene* scene, const char* name) {
 	scene->name = string_duplicate(name);
 }
 
-vec3 kscene_get_fog_colour(const struct kscene* scene) {
+colour4 kscene_get_fog_colour(const struct kscene* scene) {
 	return scene->fog_colour;
 }
-void kscene_set_fog_colour(struct kscene* scene, colour3 colour) {
+void kscene_set_fog_colour(struct kscene* scene, colour4 colour) {
 	scene->fog_colour = colour;
 }
 f32 kscene_get_fog_near(const struct kscene* scene) {
@@ -1529,16 +1539,17 @@ void kscene_set_fog_far(struct kscene* scene, f32 far) {
 	scene->fog_far = far;
 }
 
-void kscene_set_active_camera(struct kscene* scene, kcamera camera) {
-	// FIXME: implement this
-}
-
 void kscene_get_shadow_properties(
 	struct kscene* scene,
+	kcamera current_camera,
 	f32* out_shadow_dist,
 	f32* out_shadow_fade_distance,
 	f32* out_shadow_split_mult,
 	f32* out_shadow_bias) {
+
+	f32 far_clip = kcamera_get_far_clip(current_camera);
+	// Ensure the shadow map isn't including things the camera can't see.
+	*out_shadow_dist = KMIN(scene->shadow_dist + scene->shadow_fade_dist, far_clip);
 	*out_shadow_dist = scene->shadow_dist;
 	*out_shadow_fade_distance = scene->shadow_fade_dist;
 	*out_shadow_split_mult = scene->shadow_split_mult;
@@ -2602,19 +2613,6 @@ static void audio_emitter_entity_destroy(kscene* scene, audio_emitter_entity* ty
 	base_entity_destroy(scene, &typed_entity->base, entity_handle);
 }
 
-#if KOHI_DEBUG
-void kscene_enable_debug(struct kscene* scene, b8 enabled) {
-	if (scene) {
-		FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_ENABLED_BIT, enabled);
-	}
-}
-void kscene_enable_debug_grid(struct kscene* scene, b8 enabled) {
-	if (scene) {
-		FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_GRID_ENABLED_BIT, enabled);
-	}
-}
-#endif
-
 kmodel_instance kscene_model_entity_get_instance(struct kscene* scene, kentity entity) {
 	u16 type_index = kentity_unpack_type_index(entity);
 	return scene->models[type_index].model;
@@ -2787,6 +2785,7 @@ hf_terrain_render_data kscene_get_hf_terrain_render_data(
 
 		block_rd->chunk_count = HF_BLOCK_CHUNK_COUNT;
 		block_rd->chunks = p_frame_data->allocator.allocate(sizeof(hf_terrain_chunk_render_data) * block_rd->chunk_count);
+		block_rd->splatmap = block->splatmap;
 
 		for (u16 c = 0; c < block_rd->chunk_count; ++c) {
 			hf_chunk* chunk = &block->chunks[c];
@@ -2798,11 +2797,10 @@ hf_terrain_render_data kscene_get_hf_terrain_render_data(
 
 			chunk_rd->shader_instance_id = chunk->shader_instance_id;
 
-			chunk_rd->splatmap = chunk->splatmap;
-
 			for (u8 m = 0; m < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++m) {
 				chunk_rd->albedo_textures[m] = chunk->albedo_textures[m];
 				chunk_rd->normal_textures[m] = chunk->normal_textures[m];
+				chunk_rd->mra_textures[m] = chunk->mra_textures[m];
 			}
 
 			// FIXME: Pick the closest lights that actually interact with this geometry and add them
@@ -3619,8 +3617,8 @@ static b8 deserialize(const char* file_content, kscene* out_scene) {
 	kson_object_property_value_get_float(&tree.root, "shadow_bias", &out_scene->shadow_bias);
 
 	// Fog settings.
-	out_scene->fog_colour = (colour3){1, 1, 1};
-	kson_object_property_value_get_vec3(&tree.root, "fog_colour", &out_scene->fog_colour);
+	out_scene->fog_colour = (colour4){1, 1, 1, 1};
+	kson_object_property_value_get_vec4(&tree.root, "fog_colour", &out_scene->fog_colour);
 	out_scene->fog_near = 10.0f;
 	kson_object_property_value_get_float(&tree.root, "fog_near", &out_scene->fog_near);
 	out_scene->fog_far = 1000.0f;
@@ -3812,7 +3810,7 @@ const char* kscene_serialize(const kscene* scene) {
 	kson_object_value_add_float(&tree.root, "shadow_bias", scene->shadow_bias);
 
 	// Fog settings.
-	kson_object_value_add_vec3(&tree.root, "fog_colour", scene->fog_colour);
+	kson_object_value_add_vec4(&tree.root, "fog_colour", scene->fog_colour);
 	kson_object_value_add_float(&tree.root, "fog_near", scene->fog_near);
 	kson_object_value_add_float(&tree.root, "fog_far", scene->fog_far);
 

@@ -40,10 +40,10 @@ layout(std140, set = 0, binding = 0) uniform terrain_settings_ubo {
     float shadow_fade_distance;
     float shadow_split_mult;
 
-    vec3 fog_colour;
+    vec4 fog_colour;
     float fog_start;
-    vec3 padding;
     float fog_end;
+    vec2 padding;
 } global_settings;
 
 // All lighting
@@ -63,6 +63,8 @@ layout(set = 1, binding = 2) uniform texture2D albedo_textures[HF_TERRAIN_MAX_MA
 layout(set = 1, binding = 3) uniform sampler albedo_sampler;
 layout(set = 1, binding = 4) uniform texture2D normal_textures[HF_TERRAIN_MAX_MATERIAL_COUNT];
 layout(set = 1, binding = 5) uniform sampler normal_sampler;
+layout(set = 1, binding = 6) uniform texture2D mra_textures[HF_TERRAIN_MAX_MATERIAL_COUNT];
+layout(set = 1, binding = 7) uniform sampler mra_sampler;
 
 // Immediate data
 layout(push_constant) uniform immediate_data {
@@ -136,7 +138,7 @@ void main() {
     mat3 TBN = mat3(tangent, bitangent, normal);
 
 	// Determine what materials should be used/blended.
-	vec2 splatmap_texcoord = vec2((in_dto.tex_coord.x) / 8.0, (in_dto.tex_coord.y) / 8.0);
+	vec2 splatmap_texcoord = vec2((in_dto.tex_coord.x) / (128.0), (in_dto.tex_coord.y) / (128.0));
 	vec4 splat_tex = texture(sampler2D(splatmap_texture, splatmap_sampler), splatmap_texcoord);
 
     // Calculate "local normal".
@@ -151,20 +153,21 @@ void main() {
 	vec3 normal_3 = texture(sampler2D(normal_textures[3], normal_sampler), in_dto.tex_coord).rgb * 2.0 - 1.0;
 	vec3 normal_4 = texture(sampler2D(normal_textures[4], normal_sampler), in_dto.tex_coord).rgb * 2.0 - 1.0;
 
-	float n1 = splat_tex.r;
-	float n2 = splat_tex.g;
-	float n3 = splat_tex.b;
-	float n4 = splat_tex.a;
+    // Weights
+	float w1 = splat_tex.r;
+	float w2 = splat_tex.g;
+	float w3 = splat_tex.b;
+	float w4 = splat_tex.a;
+    float w0 = 1.0 - (w1 + w2 + w3 + w4);
+	w0 = max(w0, 0.0);
 
-	float n0 = 1.0 - (n1 + n2 + n3 + n4);
-	n0 = max(n0, 0.0);
-
-	vec3 normal_samp = normal_0 * n0 +
-	normal_1 * n1 +
-	normal_2 * n2 +
-	normal_3 * n3 +
-	normal_4 * n4;
-	normal_samp = normalize(normal_samp);
+	vec3 normal_samp = 
+		normal_0 * w0 +
+		normal_1 * w1 +
+		normal_2 * w2 +
+		normal_3 * w3 +
+		normal_4 * w4;
+		normal_samp = normalize(normal_samp);
 
     local_normal = normal_samp;
 
@@ -184,7 +187,6 @@ void main() {
     // Alpha defaults to 1.0 if not used.
     float alpha = 1.0;
 
-
 	// Base colour
 	vec4 tex_0 = texture(sampler2D(albedo_textures[0], albedo_sampler), in_dto.tex_coord);
 	vec4 tex_1 = texture(sampler2D(albedo_textures[1], albedo_sampler), in_dto.tex_coord);
@@ -192,27 +194,33 @@ void main() {
 	vec4 tex_3 = texture(sampler2D(albedo_textures[3], albedo_sampler), in_dto.tex_coord);
 	vec4 tex_4 = texture(sampler2D(albedo_textures[4], albedo_sampler), in_dto.tex_coord);
 
-	float w1 = splat_tex.r;
-	float w2 = splat_tex.g;
-	float w3 = splat_tex.b;
-	float w4 = splat_tex.a;
-
-	float w0 = 1.0 - (w1 + w2 + w3 + w4);
-	w0 = max(w0, 0.0);
-
-	vec4 base_colour_samp = tex_0 * w0 +
-	tex_1 * w1 +
-	tex_2 * w2 +
-	tex_3 * w3 +
-	tex_4 * w4;
+	vec4 base_colour_samp = 
+		tex_0 * w0 +
+		tex_1 * w1 +
+		tex_2 * w2 +
+		tex_3 * w3 +
+		tex_4 * w4;
 
 	base_colour_samp.a = 1.0;
 	albedo = pow(base_colour_samp.rgb, vec3(2.2));
 
-	// TODO: sample MRA map 
-	metallic = 0.0;
-	roughness = 0.5;
-	ao = 1.0;
+	// MRA
+	vec4 mra_0 = texture(sampler2D(mra_textures[0], mra_sampler), in_dto.tex_coord);
+	vec4 mra_1 = texture(sampler2D(mra_textures[1], mra_sampler), in_dto.tex_coord);
+	vec4 mra_2 = texture(sampler2D(mra_textures[2], mra_sampler), in_dto.tex_coord);
+	vec4 mra_3 = texture(sampler2D(mra_textures[3], mra_sampler), in_dto.tex_coord);
+	vec4 mra_4 = texture(sampler2D(mra_textures[4], mra_sampler), in_dto.tex_coord);
+
+	vec4 mra_samp = 
+		mra_0 * w0 +
+		mra_1 * w1 +
+		mra_2 * w2 +
+		mra_3 * w3 +
+		mra_4 * w4;
+
+	metallic = mra_samp.r;
+	roughness = mra_samp.g;
+	ao = mra_samp.b;
 
     // Shadows: 1.0 means NOT in shadow, which is the default.
     float shadow = 1.0;
@@ -335,7 +343,7 @@ void main() {
         // Apply fog, but only in "regular" mode
         if(global_settings.render_mode == 0) {
             float f = clamp((in_dto.view_depth - global_settings.fog_start) / (global_settings.fog_end - global_settings.fog_start), 0.0, 1.0);
-            colour = mix(colour.rgb, global_settings.fog_colour, f);
+            colour = mix(colour.rgb, global_settings.fog_colour.rgb, global_settings.fog_colour.a * f);
         }
 
         out_colour = vec4(colour, alpha);
@@ -381,6 +389,7 @@ vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 l
     vec3 numerator = normal_distribution * geometry * fresnel;
     float denominator = 4.0 * max(dot(normal, view_direction), 0.0) + 0.0001; // prevent div by 0 
     vec3 specular = numerator / denominator;
+    specular *= 0.2;
 
     // For energy conservation, the diffuse and specular light can't
     // be above 1.0 (unless the surface emits light); to preserve this
@@ -402,14 +411,14 @@ vec3 calculate_point_light_radiance(light_data light, vec3 view_direction, vec3 
     // NOTE: linear = colour.a, quadratic = position.w
     float attenuation = 1.0 / (constant_f + light.colour.a * distance + light.position.w * (distance * distance));
     // PBR lights are energy-based, so convert to a scale of 0-100.
-    float energy_multiplier = 100.0;
+    float energy_multiplier = 30.0;
     return (light.colour.rgb * energy_multiplier) * attenuation;
 }
 
 vec3 calculate_directional_light_radiance(vec3 colour, vec3 view_direction) {
     // For directional lights, radiance is just the same as the light colour itself.
     // PBR lights are energy-based, so convert to a scale of 0-100.
-    float energy_multiplier = 100.0;
+    float energy_multiplier = 30;// 100.0;
     return colour * energy_multiplier;
 }
 

@@ -96,10 +96,10 @@ typedef struct hf_terrain_global_ubo {
 	f32 shadow_fade_distance;
 	f32 shadow_split_mult;
 
-	vec3 fog_colour;
+	vec4 fog_colour;
 	f32 fog_start;
-	vec3 padding;
 	f32 fog_end;
+	vec2 padding;
 } hf_terrain_global_ubo;
 
 typedef struct hf_terrain_immediate_data {
@@ -237,7 +237,7 @@ void kforward_renderer_destroy(kforward_renderer* renderer) {
 	}
 }
 
-static void draw_geo_list(kforward_renderer* renderer, frame_data* p_frame_data, kdirectional_light_data directional_light, u32 view_index, vec4 clipping_plane, u32 meshes_by_material_count, kmaterial_render_data* meshes_by_material) {
+static void draw_geo_list(kforward_renderer* renderer, frame_data* p_frame_data, kdirectional_light_data directional_light, u32 view_index, f32 near_clip, f32 far_clip, vec4 clipping_plane, u32 meshes_by_material_count, kmaterial_render_data* meshes_by_material) {
 	for (u32 m = 0; m < meshes_by_material_count; ++m) {
 		kmaterial_render_data* material = &meshes_by_material[m];
 
@@ -265,7 +265,9 @@ static void draw_geo_list(kforward_renderer* renderer, frame_data* p_frame_data,
 				.num_p_lights = geo->bound_point_light_count,
 				.transform_index = geo->transform,
 				.clipping_plane = clipping_plane,
-				.geo_type = (u32)is_animated};
+				.geo_type = (u32)is_animated,
+				.near_clip = near_clip,
+				.far_clip = far_clip};
 
 			// Pack the point light indices
 			immediate_data.packed_point_light_indices.elements[0] = pack_u8_into_u32(geo->bound_point_light_indices[0], geo->bound_point_light_indices[1], geo->bound_point_light_indices[2], geo->bound_point_light_indices[3]);
@@ -359,6 +361,8 @@ static b8 scene_pass(
 	u8 view_count,
 	mat4* views,
 	u8 view_index,
+	f32 near_clip,
+	f32 far_clip,
 	ktexture colour_handle,
 	ktexture depth_handle,
 	vec4 clipping_plane,
@@ -476,7 +480,7 @@ static b8 scene_pass(
 	} // end depth pre-pass
 
 	// Render skybox. Assume no vertex count means not skybox.
-	if (skybox_data->sb_vertex_count) {
+	if (skybox_data->do_pass && skybox_data->sb_vertex_count) {
 		renderer_begin_debug_label("scene - skybox", (vec3){0.5f, 0.5f, 1.0f});
 
 		// Skybox begin render
@@ -599,7 +603,7 @@ static b8 scene_pass(
 				hf_terrain_chunk_render_data* chunk_data = &block_data->chunks[c];
 
 				// Splatmap
-				kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 0, 0, chunk_data->splatmap);
+				kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 0, 0, block_data->splatmap);
 				ksampler_backend splatmap_sampler = renderer_generic_sampler_get(renderer->renderer_state, SHADER_GENERIC_SAMPLER_LINEAR_CLAMP);
 				kshader_set_binding_sampler(shader, 1, chunk_data->shader_instance_id, 1, 0, splatmap_sampler);
 
@@ -607,6 +611,7 @@ static b8 scene_pass(
 				for (u8 m = 0; m < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++m) {
 					kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 2, m, chunk_data->albedo_textures[m]);
 					kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 4, m, chunk_data->normal_textures[m]);
+					kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 6, m, chunk_data->mra_textures[m]);
 				}
 				// Ensure the binding set is applied.
 				kshader_apply_binding_set(shader, 1, chunk_data->shader_instance_id);
@@ -674,7 +679,7 @@ static b8 scene_pass(
 		renderer_set_depth_bias(0.00f, 0.0f, -1.0f);
 	}
 	// static geometries
-	draw_geo_list(renderer, p_frame_data, directional_light, view_index, clipping_plane, pass_data->opaque_meshes_by_material_count, pass_data->opaque_meshes_by_material);
+	draw_geo_list(renderer, p_frame_data, directional_light, view_index, near_clip, far_clip, clipping_plane, pass_data->opaque_meshes_by_material_count, pass_data->opaque_meshes_by_material);
 
 	if (do_depth_prepass) {
 		// Switch back on.
@@ -684,7 +689,7 @@ static b8 scene_pass(
 		renderer_set_depth_bias(0.0f, 0.0f, 0.0f);
 	}
 	// animated geometries
-	draw_geo_list(renderer, p_frame_data, directional_light, view_index, clipping_plane, pass_data->animated_opaque_meshes_by_material_count, pass_data->animated_opaque_meshes_by_material);
+	draw_geo_list(renderer, p_frame_data, directional_light, view_index, near_clip, far_clip, clipping_plane, pass_data->animated_opaque_meshes_by_material_count, pass_data->animated_opaque_meshes_by_material);
 
 	// Draw the water planes
 	if (do_depth_prepass) {
@@ -725,7 +730,9 @@ static b8 scene_pass(
 				.tiling = material->tiling,
 				.wave_speed = material->wave_speed,
 				.wave_strength = material->wave_strength,
-				.geo_type = 0};
+				.geo_type = 0,
+				.near_clip = near_clip,
+				.far_clip = far_clip};
 
 			// Pack the point light indices
 			immediate_data.packed_point_light_indices.elements[0] = pack_u8_into_u32(plane->plane_render_data.bound_point_light_indices[0], plane->plane_render_data.bound_point_light_indices[1], plane->plane_render_data.bound_point_light_indices[2], plane->plane_render_data.bound_point_light_indices[3]);
@@ -776,10 +783,10 @@ static b8 scene_pass(
 	renderer_set_depth_write_enabled(false); */
 
 	// static transparent
-	draw_geo_list(renderer, p_frame_data, directional_light, view_index, clipping_plane, pass_data->transparent_meshes_by_material_count, pass_data->transparent_meshes_by_material);
+	draw_geo_list(renderer, p_frame_data, directional_light, view_index, near_clip, far_clip, clipping_plane, pass_data->transparent_meshes_by_material_count, pass_data->transparent_meshes_by_material);
 
 	// animated transparent
-	draw_geo_list(renderer, p_frame_data, directional_light, view_index, clipping_plane, pass_data->animated_transparent_meshes_by_material_count, pass_data->animated_transparent_meshes_by_material);
+	draw_geo_list(renderer, p_frame_data, directional_light, view_index, near_clip, far_clip, clipping_plane, pass_data->animated_transparent_meshes_by_material_count, pass_data->animated_transparent_meshes_by_material);
 
 	// Mesh end render
 	renderer_end_rendering(renderer->renderer_state, p_frame_data);
@@ -818,7 +825,7 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 	settings->fog_start = render_data->forward_data.fog_near;
 	settings->fog_end = render_data->forward_data.fog_far;
 
-	render_data->forward_data.skybox.fog_colour = vec4_from_vec3(settings->fog_colour, 1.0f);
+	render_data->forward_data.skybox.fog_colour = settings->fog_colour;
 
 	// Begin frame
 	{
@@ -1182,6 +1189,8 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 					KMATERIAL_UBO_MAX_VIEWS,
 					views,
 					0, // Use the 'normal' view matrix for refraction.
+					render_data->forward_data.near_clip,
+					render_data->forward_data.far_clip,
 					refraction_colour,
 					refraction_depth,
 					refract_clipping_plane,
@@ -1222,6 +1231,8 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 					KMATERIAL_UBO_MAX_VIEWS,
 					views,
 					1 + w, // Use the 'inverted' view matrix for this water plane's reflection pass.
+					render_data->forward_data.near_clip,
+					render_data->forward_data.far_clip,
 					reflection_colour,
 					reflection_depth,
 					reflect_clipping_plane,
@@ -1265,6 +1276,8 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 				KMATERIAL_UBO_MAX_VIEWS,
 				views,
 				0, // Use the 'normal' view matrix for standard.
+				render_data->forward_data.near_clip,
+				render_data->forward_data.far_clip,
 				renderer->colour_buffer,
 				renderer->depth_stencil_buffer,
 				clipping_plane,

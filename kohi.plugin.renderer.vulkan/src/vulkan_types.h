@@ -36,9 +36,10 @@
  * @brief Checks the given expression's return value against VK_SUCCESS.
  * @param expr The expression whose result should be checked.
  */
-#define VK_CHECK(expr)               \
-	{                                \
-		KASSERT(expr == VK_SUCCESS); \
+#define VK_CHECK(expr)                                                                                 \
+	{                                                                                                  \
+		VkResult vulkan_expr_result = expr;                                                            \
+		KASSERT_MSG(vulkan_expr_result == VK_SUCCESS, vulkan_result_string(vulkan_expr_result, true)); \
 	}
 
 struct vulkan_context;

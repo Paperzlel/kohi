@@ -91,6 +91,7 @@ typedef struct kforward_renderer {
 } kforward_renderer;
 
 typedef struct kskybox_render_data {
+	b8 do_pass;
 	u32 shader_set0_instance_id;
 	ktexture skybox_texture;
 	vec4 fog_colour;
@@ -261,7 +262,10 @@ typedef struct kforward_pass_render_data {
 	f32 shadow_fade_distance;
 	f32 shadow_split_mult;
 
-	colour3 fog_colour;
+	f32 near_clip;
+	f32 far_clip;
+
+	colour4 fog_colour;
 	f32 fog_near;
 	f32 fog_far;
 

@@ -3,6 +3,7 @@
 #include "core/engine.h"
 #include "core/frame_data.h"
 #include "core_render_types.h"
+#include "logger.h"
 #include "math/geometry.h"
 #include "math/kmath.h"
 #include "math/math_types.h"
@@ -15,6 +16,9 @@
 #include "systems/texture_system.h"
 #include <debug/kassert.h>
 #include <memory/kmemory.h>
+
+// Uncomment this for debug tracing.
+#define HF_TERRAIN_TRACE 0
 
 static void generate_normals(u32 vertex_count, hf_vertex_3d* vertices, u32 index_count, u32* indices) {
 	for (u32 i = 0; i < index_count; i += 3) {
@@ -103,11 +107,11 @@ void generate_chunk(hf_terrain* t, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u1
 			v->position.z = chunk_base_z + (z * quad_size_mod);
 			// HACK: Should start at 0, but doing this in the meantime.
 			// TODO: This should also be using the Y from the previous chunk.
-			v->position.y = (ksin(v->position.x / 8.0) + kcos(v->position.z / 8.0f)) * 2.0f;
+			v->position.y = (ksin(v->position.x / HF_VERTEX_STRIDE) + kcos(v->position.z / HF_VERTEX_STRIDE)) * 2.0f;
 
 			// Tex coords are encoded in normal/position.
-			v->position.w = x;
-			v->normal.w = z;
+			v->position.w = x + (chunk_x * HF_CHUNK_QUAD_COUNT);
+			v->normal.w = z + (chunk_z * HF_CHUNK_QUAD_COUNT);
 
 			// These will be calculated later.
 			v->normal.x = 0;
@@ -124,71 +128,78 @@ void generate_chunk(hf_terrain* t, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u1
 
 	chunk->aabb = extents;
 
+#if HF_TERRAIN_TRACE
+	static u32 g_instance_count = 0;
+	g_instance_count++;
+	KTRACE("g_instance_count = %u", g_instance_count);
+#endif
+
 	// Acquire shader resources.
 	chunk->shader_instance_id = kshader_acquire_binding_set_instance(t->hf_terrain_shader, 1);
-
-	// Create a splatmap for the chunk.
-	kname name = kname_format("hf_terrain_splatmap_block_%u_%u_chunk_%u_%u", block_z, block_x, chunk_z, chunk_x);
-
-	// FIXME: This pixel array will need to be freed somehow...
-	u64 pixel_array_size = HF_TERRAIN_SPLATMAP_RESOLUTION * HF_TERRAIN_SPLATMAP_RESOLUTION * 4;
-	u8* pixels = KALLOC_TYPE_CARRAY(u8, pixel_array_size);
-	kzero_memory(pixels, sizeof(u8) * pixel_array_size);
-
-	// HACK: Testing material mappings
-	if (block_x == 0 && block_z == 0) {
-		if (chunk_x == 0 && chunk_z == 0) {
-			pixels[(64 + 1) * 4 + 1] = 255;
-			pixels[(128 + 1) * 4 + 1] = 255;
-			pixels[(64 + 2) * 4 + 1] = 255;
-			pixels[(128 + 2) * 4 + 1] = 255;
-			pixels[(64 + 3) * 4 + 1] = 255;
-			pixels[(128 + 3) * 4 + 1] = 255;
-			pixels[(64 + 4) * 4 + 1] = 255;
-			pixels[(128 + 4) * 4 + 1] = 255;
-
-			for (u32 i = 0; i < 64; ++i) {
-				pixels[(64 * i) * 4 + 3] = 255;
-			}
-		} else if (chunk_x == 0 && chunk_z == 1) {
-			for (u32 i = 0; i < 64 * 64; ++i) {
-				if (i < 64) {
-					pixels[i * 4 + 0] = 0;
-				} else {
-					pixels[i * 4 + 0] = 255;
-				}
-			}
-		} else if (chunk_x == 0 && chunk_z == 2) {
-			for (u32 i = 0; i < 64 * 64; ++i) {
-				pixels[i * 4 + 1] = 255;
-			}
-		} else if (chunk_x == 0 && chunk_z == 3) {
-			for (u32 i = 0; i < 64 * 64; ++i) {
-				pixels[i * 4 + 2] = 255;
-			}
-		} else if (chunk_x == 0 && chunk_z == 4) {
-			for (u32 i = 0; i < 64 * 64; ++i) {
-				pixels[i * 4 + 3] = 255;
-			}
-		}
-	}
-
-	chunk->splatmap = texture_acquire_from_pixel_data(KPIXEL_FORMAT_RGBA8, pixel_array_size, pixels, HF_TERRAIN_SPLATMAP_RESOLUTION, HF_TERRAIN_SPLATMAP_RESOLUTION, name);
 
 	// HACK: Hardcoding material textures until HF terrain materials are setup.
 	chunk->albedo_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix"));
 	chunk->normal_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix_NORM"));
+	chunk->mra_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix_MRA"));
 	chunk->albedo_textures[1] = texture_acquire_sync(kname_create("dirtRocks_dark"));
-	chunk->normal_textures[1] = texture_acquire_sync(kname_create(DEFAULT_NORMAL_TEXTURE_NAME));
+	chunk->normal_textures[1] = texture_acquire_sync(kname_create("dirtRocks_dark_NORM"));
+	chunk->mra_textures[1] = texture_acquire_sync(kname_create("dirtRocks_dark_MRA"));
 	chunk->albedo_textures[2] = texture_acquire_sync(kname_create("paverPath"));
-	chunk->normal_textures[2] = texture_acquire_sync(kname_create(DEFAULT_NORMAL_TEXTURE_NAME));
+	chunk->normal_textures[2] = texture_acquire_sync(kname_create("paverPath_NORM"));
+	chunk->mra_textures[2] = texture_acquire_sync(kname_create("paverPath_MRA"));
 	chunk->albedo_textures[3] = texture_acquire_sync(kname_create("lushGrass"));
-	chunk->normal_textures[3] = texture_acquire_sync(kname_create(DEFAULT_NORMAL_TEXTURE_NAME));
+	chunk->normal_textures[3] = texture_acquire_sync(kname_create("lushGrass_NORM"));
+	chunk->mra_textures[3] = texture_acquire_sync(kname_create("lushGrass_MRA"));
 	chunk->albedo_textures[4] = texture_acquire_sync(kname_create("yellowFlowers"));
-	chunk->normal_textures[4] = texture_acquire_sync(kname_create(DEFAULT_NORMAL_TEXTURE_NAME));
+	chunk->normal_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_NORM"));
+	chunk->mra_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_MRA"));
+
+	// HACK: Showcasing different materials per chunk.
+	if (chunk_x == 1 && chunk_z == 0) {
+		// transition to new zone material set
+		chunk->albedo_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix"));
+		chunk->normal_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix_NORM"));
+		chunk->mra_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix_MRA"));
+		chunk->albedo_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry"));
+		chunk->normal_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry_NORM"));
+		chunk->mra_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry_MRA"));
+		chunk->albedo_textures[2] = texture_acquire_sync(kname_create("paverPath"));
+		chunk->normal_textures[2] = texture_acquire_sync(kname_create("paverPath_NORM"));
+		chunk->mra_textures[2] = texture_acquire_sync(kname_create("paverPath_MRA"));
+		chunk->albedo_textures[3] = texture_acquire_sync(kname_create("lushGrass"));
+		chunk->normal_textures[3] = texture_acquire_sync(kname_create("lushGrass_NORM"));
+		chunk->mra_textures[3] = texture_acquire_sync(kname_create("lushGrass_MRA"));
+		chunk->albedo_textures[4] = texture_acquire_sync(kname_create("yellowFlowers"));
+		chunk->normal_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_NORM"));
+		chunk->mra_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_MRA"));
+	}
+	if (chunk_x == 2 && chunk_z == 0) {
+		// new zone material set
+		chunk->albedo_textures[0] = texture_acquire_sync(kname_create("lushGrass_dry"));
+		chunk->normal_textures[0] = texture_acquire_sync(kname_create("lushGrass_dry_NORM"));
+		chunk->mra_textures[0] = texture_acquire_sync(kname_create("lushGrass_dry_MRA"));
+		chunk->albedo_textures[1] = texture_acquire_sync(kname_create("squarePaverPath_Angled"));
+		chunk->normal_textures[1] = texture_acquire_sync(kname_create("squarePaverPath_Angled_NORM"));
+		chunk->mra_textures[1] = texture_acquire_sync(kname_create("squarePaverPath_Angled_MRA"));
+		chunk->albedo_textures[2] = texture_acquire_sync(kname_create("paverPath"));
+		chunk->normal_textures[2] = texture_acquire_sync(kname_create("paverPath_NORM"));
+		chunk->mra_textures[2] = texture_acquire_sync(kname_create("paverPath_MRA"));
+		chunk->albedo_textures[3] = texture_acquire_sync(kname_create("lushGrass"));
+		chunk->normal_textures[3] = texture_acquire_sync(kname_create("lushGrass_NORM"));
+		chunk->mra_textures[3] = texture_acquire_sync(kname_create("lushGrass_MRA"));
+		chunk->albedo_textures[4] = texture_acquire_sync(kname_create("yellowFlowers"));
+		chunk->normal_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_NORM"));
+		chunk->mra_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_MRA"));
+	}
 }
 
 void generate_block(hf_terrain* t, hf_block* block, u16 block_x, u16 block_z, u16 z_dim) {
+
+#if HF_TERRAIN_TRACE
+	static u32 g_block_count = 0;
+	g_block_count++;
+	KTRACE("g_block_count = %u", g_block_count);
+#endif
 
 	extents_3d extents = {
 		.max = vec3_create(-999999.0f, -999999.0f, -999999.0f),
@@ -207,6 +218,17 @@ void generate_block(hf_terrain* t, hf_block* block, u16 block_x, u16 block_z, u1
 			extents.max = vec3_max(block->chunks[index].aabb.max, extents.max);
 		}
 	}
+
+	// Create a splatmap for the block.
+	kname name = kname_format("hf_terrain_splatmap_block_%u_%u", block_z, block_x);
+
+	u64 pixel_array_size = HF_TERRAIN_SPLATMAP_RESOLUTION * HF_TERRAIN_SPLATMAP_RESOLUTION * 4;
+	u8* pixels = KALLOC_TYPE_CARRAY(u8, pixel_array_size);
+	kzero_memory(pixels, sizeof(u8) * pixel_array_size);
+	// TODO: read in pixels from a file...
+
+	KDUPLICATE_TYPE_CARRAY(block->splatmap_pixels, pixels, u8, pixel_array_size);
+	block->splatmap = texture_acquire_from_pixel_data(KPIXEL_FORMAT_RGBA8, pixel_array_size, pixels, HF_TERRAIN_SPLATMAP_RESOLUTION, HF_TERRAIN_SPLATMAP_RESOLUTION, name);
 
 	block->aabb = extents;
 }
@@ -283,10 +305,13 @@ void hf_terrain_destroy(hf_terrain* t) {
 		u32 block_count = t->block_count_z * t->block_count_x;
 		for (u32 b = 0; b < block_count; ++b) {
 			hf_block* block = &t->blocks[b];
+
+			texture_release(block->splatmap);
+			u64 pixel_array_size = HF_TERRAIN_SPLATMAP_RESOLUTION * HF_TERRAIN_SPLATMAP_RESOLUTION * 4;
+			KFREE_TYPE_CARRAY(block->splatmap_pixels, u8, pixel_array_size);
+
 			for (u32 c = 0; c < 256; ++c) {
 				hf_chunk* chunk = &block->chunks[c];
-
-				texture_release(chunk->splatmap);
 
 				kshader_release_binding_set_instance(t->hf_terrain_shader, 1, chunk->shader_instance_id);
 
@@ -332,12 +357,12 @@ void hf_terrain_get_render_data(const hf_terrain* t, frame_data* p_frame_data, h
 				// TODO: frustum culling within this block
 				brd->chunk_count = HF_BLOCK_CHUNK_COUNT;
 				brd->chunks = p_frame_data->allocator.allocate(sizeof(hf_terrain_chunk_render_data) * brd->chunk_count);
+				brd->splatmap = block->splatmap;
 				for (u32 i = 0; i < brd->chunk_count; ++i) {
 					hf_chunk* chunk = &block->chunks[i];
 					hf_terrain_chunk_render_data* crd = &brd->chunks[i];
 					crd->vertex_count = HF_CHUNK_VERTEX_COUNT;
 					crd->vertex_buffer_offset = chunk->vertex_buffer_offset;
-					crd->splatmap = chunk->splatmap;
 					for (u8 a = 0; a < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++a) {
 						crd->albedo_textures[a] = chunk->albedo_textures[a];
 					}

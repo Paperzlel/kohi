@@ -462,7 +462,7 @@ b8 engine_create(application* app, const char* app_config_path, const char* game
 			KERROR("Failed to deserialize renderer system config, which is required.");
 			return false;
 		}
-		renderer_sys_config.max_texture_count = 4096;
+		renderer_sys_config.max_texture_count = 16384;
 
 		renderer_system_initialize(&systems->renderer_system_memory_requirement, 0, &renderer_sys_config);
 		systems->renderer_system = kallocate(systems->renderer_system_memory_requirement, MEMORY_TAG_ENGINE);

@@ -81,10 +81,10 @@ typedef struct kmaterial_settings_ubo {
 	f32 shadow_split_mult;
 
 	// Fog settings
-	colour3 fog_colour;
+	colour4 fog_colour;
 	f32 fog_start;
-	vec3 padding; // TODO: available
 	f32 fog_end;
+	vec2 padding; // TODO: available
 } kmaterial_settings_ubo;
 
 typedef enum kmaterial_data_index {
@@ -123,7 +123,8 @@ typedef struct kmaterial_render_immediate_data {
 	// bytes 64-79
 	u32 transform_index;
 	u32 geo_type;
-	vec2 padding;
+	f32 near_clip;
+	f32 far_clip;
 	// 80-128 available
 } kmaterial_render_immediate_data;
 
@@ -173,7 +174,7 @@ KAPI void kmaterial_renderer_shutdown(kmaterial_renderer* state);
 
 KAPI void kmaterial_renderer_update(kmaterial_renderer* state);
 
-KAPI void kmaterial_renderer_set_fog_colour(kmaterial_renderer* state, colour3 colour);
+KAPI void kmaterial_renderer_set_fog_colour(kmaterial_renderer* state, colour4 colour);
 KAPI void kmaterial_renderer_set_fog_near_far(kmaterial_renderer* state, f32 near, f32 far);
 
 // Sets material_data->group_id;

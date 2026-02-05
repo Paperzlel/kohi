@@ -1054,7 +1054,7 @@ static ktexture texture_get_if_exists(kname name) {
 			KERROR("%s - lookup for name '%s' exists, but texture is invalid. This likely means a release wasn't done properly.", __FUNCTION__, kname_string_get(name));
 			return INVALID_KTEXTURE;
 		}
-		KTRACE("%s - Texture '%s' already exists - returning.", __FUNCTION__, kname_string_get(name));
+		// KTRACE("%s - Texture '%s' already exists - returning.", __FUNCTION__, kname_string_get(name));
 
 		return t;
 	}
@@ -1082,7 +1082,7 @@ static ktexture texture_get_new(kname name) {
 		}
 	}
 
-	KERROR("%s - Failed to find free slot in texture cache. Cache is full. Increase max_texture_count.");
+	KERROR("%s - Failed to find free slot in texture cache. Cache is full. Increase max_texture_count.", __FUNCTION__);
 	return INVALID_KTEXTURE;
 }
 

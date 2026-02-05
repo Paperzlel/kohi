@@ -241,6 +241,17 @@ KINLINE f32 klerp(f32 a, f32 b, f32 t) {
 	return a + t * (b - a);
 }
 
+KINLINE f32 kfalloff_smooth(f32 t) {
+	if (t >= 1.0f) {
+		return 0.0f;
+	}
+	if (t <= 0.0f) {
+		return 1.0f;
+	}
+
+	return 1.0f - (t * t * (3.0f - 2.0f * t));
+}
+
 /**
  * @brief Indicates if the value is a power of 2. 0 is considered _not_ a power
  * of 2.

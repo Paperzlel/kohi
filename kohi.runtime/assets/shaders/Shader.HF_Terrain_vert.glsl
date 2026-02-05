@@ -42,10 +42,11 @@ layout(std140, set = 0, binding = 0) uniform terrain_settings_ubo {
     float shadow_fade_distance;
     float shadow_split_mult;
 
-    vec3 fog_colour;
+    vec4 fog_colour;
     float fog_start;
-    vec3 padding;
     float fog_end;
+    float near_clip;
+    float far_clip;
 } global_settings;
 
 // All lighting

@@ -40,7 +40,7 @@ void main() {
 	float max_fog_y = 0.02;
 	float fog_factor = smoothstep(max_fog_y, min_fog_y, in_dto.frag_pos.y);
 
-	vec3 final_colour = mix(out_colour.rgb, global_ubo.fog_colour.rgb, fog_factor);
+	vec3 final_colour = mix(out_colour.rgb, global_ubo.fog_colour.rgb, fog_factor * global_ubo.fog_colour.a);
 
 	out_colour = vec4(final_colour, 1.0);
 

@@ -82,10 +82,10 @@ layout(std140, set = 0, binding = 0) uniform kmaterial_settings_ubo {
     float shadow_fade_distance;
     float shadow_split_mult;
 
-    vec3 fog_colour;
+    vec4 fog_colour;
     float fog_start;
-    vec3 padding;
     float fog_end;
+    vec2 padding;
 } global_settings;
 
 // All transforms
@@ -136,7 +136,8 @@ layout(push_constant) uniform immediate_data {
     // bytes 64-79
     uint transform_index;
     uint geo_type; // 0=static, 1=animated
-    vec2 padding;
+    float near_clip;
+    float far_clip;
     // 80-128 available
 } immediate;
 

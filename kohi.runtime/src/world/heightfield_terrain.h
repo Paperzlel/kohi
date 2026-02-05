@@ -43,6 +43,9 @@
 #define HF_VERTEX_STRIDE (HF_CHUNK_QUAD_COUNT + 1)
 // How many chunks per block on x and z axes
 #define HF_BLOCK_CHUNK_DIM 16
+
+#define HF_BLOCK_SIZE_WORLD HF_CHUNK_SIZE_WORLD* HF_BLOCK_CHUNK_DIM;
+
 // How many quads per block on x and z axes.
 #define HF_BLOCK_QUAD_COUNT (HF_CHUNK_QUAD_COUNT * HF_BLOCK_CHUNK_DIM)
 // How many vertices in a single chunk
@@ -57,7 +60,7 @@
 
 #define HF_TERRAIN_CHUNK_MAX_MATERIALS 5
 
-#define HF_TERRAIN_SPLATMAP_RESOLUTION 64
+#define HF_TERRAIN_SPLATMAP_RESOLUTION 1024
 
 #define HF_TERRAIN_MAX_BOUND_POINT_LIGHTS 8
 
@@ -74,9 +77,9 @@ typedef struct hf_vertex_3d {
 typedef struct hf_chunk {
 	u64 vertex_buffer_offset;
 
-	ktexture splatmap;
 	ktexture albedo_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
 	ktexture normal_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
+	ktexture mra_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
 
 	u32 shader_instance_id;
 
@@ -103,6 +106,9 @@ typedef struct hf_block {
 	u16 x;
 	// z index, not coordinate
 	u16 z;
+
+	ktexture splatmap;
+	u8* splatmap_pixels;
 
 } hf_block;
 
@@ -134,9 +140,9 @@ typedef struct hf_terrain_chunk_render_data {
 
 	u32 shader_instance_id;
 
-	ktexture splatmap;
 	ktexture albedo_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
 	ktexture normal_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
+	ktexture mra_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
 
 	u8 bound_point_light_count;
 	u8 bound_point_light_indices[HF_TERRAIN_MAX_BOUND_POINT_LIGHTS];
@@ -145,6 +151,7 @@ typedef struct hf_terrain_chunk_render_data {
 typedef struct hf_terrain_block_render_data {
 	u64 chunk_count;
 	hf_terrain_chunk_render_data* chunks;
+	ktexture splatmap;
 } hf_terrain_block_render_data;
 
 typedef struct hf_terrain_render_data {

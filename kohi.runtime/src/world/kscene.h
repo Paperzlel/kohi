@@ -33,17 +33,23 @@ typedef enum kscene_render_data_flag {
 	// Only get transparent geometry. Don't set this flag if opaque geometry is needed.
 	KSCENE_RENDER_DATA_FLAG_TRANSPARENT_BIT = 1 << 0,
 
-	KSCENE_RENDER_INCLUDE_BVH_DEBUG_BIT = 1 << 1
+	KSCENE_RENDER_INCLUDE_BVH_DEBUG_BIT = 1 << 1,
 } kscene_render_data_flag;
 
 typedef u32 kscene_render_data_flag_bits;
 
 typedef enum kscene_flag_bits {
 	KSCENE_FLAG_NONE = 0,
+	KSCENE_FLAG_RENDER_SKYBOX_BIT = 1 << 1,
+	KSCENE_FLAG_RENDER_STATIC_MODELS_BIT = 1 << 2,
+	KSCENE_FLAG_RENDER_ANIMATED_MODELS_BIT = 1 << 3,
+	KSCENE_FLAG_RENDER_HF_TERRAIN_BIT = 1 << 4,
+	KSCENE_FLAG_RENDER_WATER_PLANES_BIT = 1 << 5,
+	KSCENE_FLAG_RENDER_FOG_BIT = 1 << 6,
 #if KOHI_DEBUG
-	KSCENE_FLAG_DEBUG_ENABLED_BIT = 1 << 0,
-	KSCENE_FLAG_DEBUG_GRID_ENABLED_BIT = 1 << 1,
-	KSCENE_FLAG_DEBUG_BVH_ENABLED_BIT = 1 << 2,
+	KSCENE_FLAG_DEBUG_ENABLED_BIT = 1 << 29,
+	KSCENE_FLAG_DEBUG_GRID_ENABLED_BIT = 1 << 30,
+	KSCENE_FLAG_DEBUG_BVH_ENABLED_BIT = 1 << 31,
 #endif
 } kscene_flag_bits;
 
@@ -69,16 +75,14 @@ KAPI void kscene_set_flag(struct kscene* scene, kscene_flags flag, b8 enabled);
 
 KAPI const char* kscene_get_name(const struct kscene* scene);
 KAPI void kscene_set_name(struct kscene* scene, const char* name);
-KAPI vec3 kscene_get_fog_colour(const struct kscene* scene);
-KAPI void kscene_set_fog_colour(struct kscene* scene, colour3 colour);
+KAPI colour4 kscene_get_fog_colour(const struct kscene* scene);
+KAPI void kscene_set_fog_colour(struct kscene* scene, colour4 colour);
 KAPI f32 kscene_get_fog_near(const struct kscene* scene);
 KAPI void kscene_set_fog_near(struct kscene* scene, f32 near);
 KAPI f32 kscene_get_fog_far(const struct kscene* scene);
 KAPI void kscene_set_fog_far(struct kscene* scene, f32 far);
 
-KAPI void kscene_set_active_camera(struct kscene* scene, kcamera camera);
-
-KAPI void kscene_get_shadow_properties(struct kscene* scene, f32* out_shadow_dist, f32* out_shadow_fade_distance, f32* out_shadow_split_mult, f32* out_shadow_bias);
+KAPI void kscene_get_shadow_properties(struct kscene* scene, kcamera current_camera, f32* out_shadow_dist, f32* out_shadow_fade_distance, f32* out_shadow_split_mult, f32* out_shadow_bias);
 
 KAPI b8 kscene_raycast(struct kscene* scene, const struct ray* r, struct raycast_result* out_result);
 KAPI b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, hf_block* out_block, hf_chunk* out_chunk, vec3* out_pos, vec3* out_normal);
@@ -166,11 +170,6 @@ KAPI kentity kscene_add_audio_emitter(
 	kname package_name);
 
 KAPI kentity kscene_add_spawn_point(struct kscene* scene, kname name, ktransform transform, kentity parent, f32 radius);
-
-#if KOHI_DEBUG
-KAPI void kscene_enable_debug(struct kscene* scene, b8 enabled);
-KAPI void kscene_enable_debug_grid(struct kscene* scene, b8 enabled);
-#endif
 
 KAPI kmodel_instance kscene_model_entity_get_instance(struct kscene* scene, kentity entity);
 

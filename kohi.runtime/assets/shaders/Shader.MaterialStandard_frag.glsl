@@ -126,10 +126,10 @@ layout(std140, set = 0, binding = 0) uniform kmaterial_settings_ubo {
     float shadow_fade_distance;
     float shadow_split_mult;
 
-    vec3 fog_colour;
+    vec4 fog_colour;
     float fog_start;
-    vec3 padding;
     float fog_end;
+    vec2 padding;
 } global_settings;
 
 // All transforms
@@ -188,7 +188,8 @@ layout(push_constant) uniform immediate_data {
     // bytes 64-79
     uint transform_index;
     uint geo_type; // 0=static, 1=animated
-    vec2 padding;
+    float near_clip;
+    float far_clip;
     // 80-128 available
 } immediate;
 
@@ -210,7 +211,7 @@ layout(location = 0) in dto {
 // =========================================================
 layout(location = 0) out vec4 out_colour;
 
-vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 light_direction, float metallic, float roughness, vec3 base_reflectivity, vec3 radiance);
+vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 light_direction, float metallic, float roughness, vec3 base_reflectivity, vec3 radiance, float diffuse_mult);
 vec3 calculate_point_light_radiance(light_data point_light, vec3 view_direction, vec3 frag_position_xyz);
 vec3 calculate_directional_light_radiance(vec3 colour, vec3 view_direction);
 float calculate_pcf(vec3 projected, int cascade_index, float shadow_bias);
@@ -283,6 +284,8 @@ void main() {
     vec3 emissive = vec3(0.0);
     // Alpha defaults to 1.0 if not used.
     float alpha = 1.0;
+
+    vec3 base_reflectivity;
 
     if(base_material.material_type == MAT_TYPE_STANDARD) {
 
@@ -372,10 +375,15 @@ void main() {
         metallic = mra.r;
         roughness = mra.g;
         ao = mra.b;
+
+        // calculate reflectance at normal incidence; if dia-electric (like plastic) use base_reflectivity 
+        // of 0.04 and if it's a metal, use the albedo color as base_reflectivity (metallic workflow)    
+        base_reflectivity = vec3(0.02); 
+        base_reflectivity = mix(base_reflectivity, albedo, metallic);
     } else if (base_material.material_type == MAT_TYPE_WATER) {
         // These can be hardcoded for water surfaces.
-        metallic = 0.9;
-        roughness = 1.0 - metallic;
+        metallic = 0.0;
+        roughness = 0.02;
         ao = 1.0;
 
         float water_depth = 0;
@@ -385,22 +393,25 @@ void main() {
         vec2 reflect_texcoord = vec2(ndc.x, ndc.y);
         vec2 refract_texcoord = vec2(ndc.x, -ndc.y);
 
-        // TODO: Should come as uniforms from the viewport's near/far.
-        float near = 0.1;
-        float far = 1000.0;
+        float near = immediate.near_clip;
+        float far = immediate.far_clip;
+        // Depth of underlying geometry to screen, converted to linear distance.
         float depth = texture(sampler2D(material_textures[MAT_WATER_IDX_REFRACTION_DEPTH], material_samplers[MAT_WATER_IDX_REFRACTION_DEPTH]), refract_texcoord).r;
-        // Convert depth to linear distance.
         float floor_distance = 2.0 * near * far / (far + near - (2.0 * depth - 1.0) * (far - near));
+
+        // Distance of the water plane fragment from the screen, converted to linear distance.
         depth = gl_FragCoord.z;
         float water_distance = 2.0 * near * far / (far + near - (2.0 * depth - 1.0) * (far - near));
+
+        // Distance between water surface and underlying geometry.
         water_depth = floor_distance - water_distance;
 
-        float edge_depth_falloff = 0.5;
-        float depth_influence = clamp((water_depth / edge_depth_falloff), 0.0, 1.0);
+        float distortion_edge_depth_falloff = 0.25;
+        float distortion_depth_influence = clamp((water_depth / distortion_edge_depth_falloff), 0.0, 1.0);
 
         // Distort further
         vec2 distortion_total = (texture(sampler2D(material_textures[MAT_WATER_IDX_DUDV], material_samplers[MAT_WATER_IDX_DUDV]), distorted_texcoords).rg * 2.0 - 1.0) * immediate.wave_strength;
-        distortion_total *= depth_influence;
+        distortion_total *= distortion_depth_influence;
 
         reflect_texcoord += distortion_total;
         // Avoid edge artifacts by clamping slightly inward to prevent texture wrapping.
@@ -411,33 +422,40 @@ void main() {
         refract_texcoord.x = clamp(refract_texcoord.x, 0.001, 0.999);
         refract_texcoord.y = clamp(refract_texcoord.y, -0.999, -0.001); // Account for flipped y-axis
 
+        float wet_depth_falloff = 0.025;
+        float wet_depth_influence = clamp((water_depth / wet_depth_falloff), 0.0, 1.0);
+
         vec4 reflect_colour = texture(sampler2D(material_textures[MAT_WATER_IDX_REFLECTION], material_samplers[MAT_WATER_IDX_REFLECTION]), reflect_texcoord);
         vec4 refract_colour = texture(sampler2D(material_textures[MAT_WATER_IDX_REFRACTION], material_samplers[MAT_WATER_IDX_REFRACTION]), refract_texcoord);
         // Refract should be slightly darker since it's wet.
-        // refract_colour.rgb = clamp(refract_colour.rgb - vec3(0.2), vec3(0.0), vec3(1.0));
+        refract_colour.rgb = clamp(refract_colour.rgb - (vec3(0.075) * wet_depth_influence), vec3(0.0), vec3(1.0));
 
-        // Calculate the fresnel effect.
-        float fresnel_factor = dot(normalize(in_dto.world_to_camera), normal);
-        // float fresnel_factor = dot(normal, normalize(in_dto.world_to_camera));
-        fresnel_factor = 1.0-(0.03 + (1.0 - 0.03) * pow(1.0 - fresnel_factor, 5.0));
-        fresnel_factor = pow(fresnel_factor, 0.5);
+        // Base the fresnel effect more on the calculated normal up close, but more on the geometric
+        // normal in the distance to smooth things out.
+        vec3 geo_normal = in_dto.normal;
+        float surf_norm_max_dist = 100.0; // TODO: configurable?
+        float dist_fade = clamp(distance(global_settings.view_positions[immediate.view_index].xyz, in_dto.frag_position.xyz) / surf_norm_max_dist, 0.0, 1.0);
+        float wave_influence = 0.2 * (1.0 - dist_fade);
+        vec3 n_fresnel = normalize(mix(geo_normal, normal, wave_influence));
+
+        float cos_theta = clamp(dot(normalize(n_fresnel), normalize(in_dto.world_to_camera)), 0.0, 1.0);
+        base_reflectivity = vec3(0.02); // base reflectivity
+        float F0 = base_reflectivity.r;
+        float fresnel_factor = F0 + (1.0 - F0) * pow(1.0 - cos_theta, 5.0);
         fresnel_factor = clamp(fresnel_factor, 0.0, 1.0);
-        //  edge_depth_falloff = 0.5;
-        // float depth_influence = clamp((water_depth / edge_depth_falloff), 0.0, 1.0);
 
-        out_colour = mix(reflect_colour, refract_colour, fresnel_factor);
+        float tint_edge_depth_falloff = 10.0; // TODO: configurable.
+        float tint_depth_influence = clamp((water_depth / tint_edge_depth_falloff), 0.0, 1.0);
 
-        
-        // out_colour = mix(reflect_colour, refract_colour, clamp(1.0 - (water_depth / edge_depth_falloff), 0.0, 1.0));
-        vec4 tint = vec4(0.0, 0.3, 0.5, 1.0); // TODO: configurable.
-        float tint_strength = 0.75; // TODO: configurable.
-        // out_colour = mix(out_colour, tint, tint_strength * (depth_influence));
+        // Apply tint to refraction only. Alpha is the "strength"
+        if(global_settings.render_mode == 0) {
+            vec4 tint = vec4(0.0, 0.3, 0.5, 1.0); // TODO: configurable.
+            refract_colour = mix(refract_colour, tint, tint.a * (tint_depth_influence));
+        }
 
-        albedo = out_colour.rgb;
-
-        // Falloff depth of the water at the edge.
-        edge_depth_falloff = 0.5; // TODO: configurable
-        alpha = clamp(water_depth / edge_depth_falloff, 0.0, 1.0);
+        float reflection_edge_depth_falloff = 0.5;
+        albedo = mix(refract_colour, reflect_colour, fresnel_factor * clamp((water_depth / reflection_edge_depth_falloff), 0.0, 1.0)).rgb;
+        alpha = 1.0;
     }
 
     // Shadows: 1.0 means NOT in shadow, which is the default.
@@ -492,11 +510,6 @@ void main() {
         shadow = clamp(shadow + (1.0 - fade_factor), 0.0, 1.0);
     } 
 
-    // calculate reflectance at normal incidence; if dia-electric (like plastic) use base_reflectivity 
-    // of 0.04 and if it's a metal, use the albedo color as base_reflectivity (metallic workflow)    
-    vec3 base_reflectivity = vec3(0.04); 
-    base_reflectivity = mix(base_reflectivity, albedo, metallic);
-
     if(global_settings.render_mode == 0 || global_settings.render_mode == 1 || global_settings.render_mode == 3) {
         vec3 view_direction = normalize(view_position.xyz - in_dto.frag_position.xyz);
 
@@ -505,8 +518,10 @@ void main() {
         // then add this colour to albedo and clamp it. This will result in pure 
         // white for the albedo in mode 1, and normal albedo in mode 0, all without
         // branching.
-        albedo += (vec3(1.0) * global_settings.render_mode);         
-        albedo = clamp(albedo, vec3(0.0), vec3(1.0));
+        if (base_material.material_type == MAT_TYPE_STANDARD) {
+            albedo += (vec3(1.0) * global_settings.render_mode);         
+            albedo = clamp(albedo, vec3(0.0), vec3(1.0));
+        }
 
         // This is based off the Cook-Torrance BRDF (Bidirectional Reflective Distribution Function).
         // This uses a micro-facet model to use roughness and metallic properties of materials to produce
@@ -515,13 +530,18 @@ void main() {
         // Overall reflectance.
         vec3 total_reflectance = vec3(0.0);
 
+        float diffuse_mult = 1.0;
+        if (base_material.material_type == MAT_TYPE_WATER) {
+            diffuse_mult = 0.0;
+        }
+
         // Directional light radiance.
         {
             vec3 light_direction = normalize(-directional_light.position.xyz); // position = direction for directional light
             vec3 radiance = calculate_directional_light_radiance(directional_light.colour.rgb, view_direction);
 
             // Only directional light should be affected by shadow map.
-            total_reflectance += (shadow * calculate_reflectance(albedo, normal, view_direction, light_direction, metallic, roughness, base_reflectivity, radiance));
+            total_reflectance += (shadow * calculate_reflectance(albedo, normal, view_direction, light_direction, metallic, roughness, base_reflectivity, radiance, diffuse_mult));
         }
 
         // Point light radiance
@@ -536,24 +556,28 @@ void main() {
                 vec3 light_direction = normalize(light.position.xyz - in_dto.frag_position.xyz);
                 vec3 radiance = calculate_point_light_radiance(light, view_direction, in_dto.frag_position.xyz);
 
-                total_reflectance += calculate_reflectance(albedo, normal, view_direction, light_direction, metallic, roughness, base_reflectivity, radiance);
+                total_reflectance += calculate_reflectance(albedo, normal, view_direction, light_direction, metallic, roughness, base_reflectivity, radiance, diffuse_mult);
                 plights_rendered++;
             }
         }
 
         // Irradiance holds all the scene's indirect diffuse light. Use the surface normal to sample from it.
         vec3 irradiance = texture(samplerCube(irradiance_textures[immediate.irradiance_cubemap_index], irradiance_sampler), normal).rgb;
-
         // Combine irradiance with albedo and ambient occlusion. 
         // Also add in total accumulated reflectance.
         vec3 ambient = irradiance * albedo * ao;
+        if (base_material.material_type == MAT_TYPE_WATER) {
+            ambient =  albedo * ao;
+        }
         // Modify total reflectance by the ambient colour.
         vec3 colour = ambient + total_reflectance;
 
-        // HDR tonemapping
-        colour = colour / (colour + vec3(1.0));
-        // Gamma correction
-        colour = pow(colour, vec3(1.0 / 2.2));
+        // HDR tonemapping - only on standard materials.
+        if (base_material.material_type == MAT_TYPE_STANDARD) {
+            colour = colour / (colour + vec3(1.0));
+            // Gamma correction
+            colour = pow(colour, vec3(1.0 / 2.2));
+        }
 
         // Apply cascade_colour if relevant.
         colour *= cascade_colour;
@@ -564,7 +588,7 @@ void main() {
         // Apply fog, but only in "regular" mode
         if(global_settings.render_mode == 0) {
             float f = clamp((in_dto.view_depth - global_settings.fog_start) / (global_settings.fog_end - global_settings.fog_start), 0.0, 1.0);
-            colour = mix(colour.rgb, global_settings.fog_colour, f);
+            colour = mix(colour.rgb, global_settings.fog_colour.rgb, global_settings.fog_colour.a * f);
         }
 
         out_colour = vec4(colour, alpha);
@@ -583,7 +607,7 @@ void main() {
     }
 }
 
-vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 light_direction, float metallic, float roughness, vec3 base_reflectivity, vec3 radiance) {
+vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 light_direction, float metallic, float roughness, vec3 base_reflectivity, vec3 radiance, float diffuse_mult) {
     vec3 halfway = normalize(view_direction + light_direction);
 
     // This is based off the Cook-Torrance BRDF (Bidirectional Reflective Distribution Function).
@@ -624,7 +648,8 @@ vec3 calculate_reflectance(vec3 albedo, vec3 normal, vec3 view_direction, vec3 l
     // multiply diffuse by the inverse metalness such that only non-metals 
     // have diffuse lighting, or a linear blend if partly metal (pure metals
     // have no diffuse light).
-    refraction_diffuse *= 1.0 - metallic;	  
+    refraction_diffuse *= 1.0 - metallic;
+    refraction_diffuse *= diffuse_mult;
 
     // The end result is the reflectance to be added to the overall, which is tracked by the caller.
     return (refraction_diffuse * albedo / PI + specular) * radiance * normal_dot_light_direction;  
@@ -637,14 +662,14 @@ vec3 calculate_point_light_radiance(light_data light, vec3 view_direction, vec3 
     // NOTE: linear = colour.a, quadratic = position.w
     float attenuation = 1.0 / (constant_f + light.colour.a * distance + light.position.w * (distance * distance));
     // PBR lights are energy-based, so convert to a scale of 0-100.
-    float energy_multiplier = 100.0;
+    float energy_multiplier = 30.0;
     return (light.colour.rgb * energy_multiplier) * attenuation;
 }
 
 vec3 calculate_directional_light_radiance(vec3 colour, vec3 view_direction) {
     // For directional lights, radiance is just the same as the light colour itself.
     // PBR lights are energy-based, so convert to a scale of 0-100.
-    float energy_multiplier = 100.0;
+    float energy_multiplier = 30.0;
     return colour * energy_multiplier;
 }
 

@@ -338,7 +338,7 @@ b8 kui_textbox_control_render(kui_state* state, kui_control self, struct frame_d
 		nineslice_renderable.atlas_override = INVALID_KTEXTURE;
 
 		u32 len = darray_length(render_data->renderables);
-		darray_insert_at(render_data->renderables, len-1, nineslice_renderable);
+		darray_insert_at(render_data->renderables, len - 1, nineslice_renderable);
 
 		// darray_push(render_data->renderables, nineslice_renderable);
 	}
@@ -352,7 +352,7 @@ b8 kui_textbox_control_render(kui_state* state, kui_control self, struct frame_d
 	// Render the highlight box manually so the clip mask can be attached to it.
 	// This ensures the highlight boxis rendered and clipped before the cursor or other
 	// children are drawn.
-	if(FLAG_GET(highlight_base->flags, KUI_CONTROL_FLAG_VISIBLE_BIT)){
+	if (FLAG_GET(highlight_base->flags, KUI_CONTROL_FLAG_VISIBLE_BIT)) {
 		if (!highlight_base->render(state, typed_control->highlight_box, p_frame_data, render_data)) {
 			KERROR("Failed to render highlight box for textbox '%s'", base->name);
 			return false;
@@ -413,6 +413,18 @@ void kui_textbox_text_set(kui_state* state, kui_control self, const char* text) 
 	// Reset the cursor position when the text is set.
 	typed_data->cursor_position = 0;
 	kui_textbox_update_cursor_position(state, base);
+}
+
+void kui_textbox_i64_set(kui_state* state, kui_control self, i64 i) {
+	const char* str = i64_to_string(i);
+	kui_textbox_text_set(state, self, str);
+	string_free(str);
+}
+
+void kui_textbox_f32_set(kui_state* state, kui_control self, f32 f) {
+	const char* str = f32_to_string(f);
+	kui_textbox_text_set(state, self, str);
+	string_free(str);
 }
 
 void kui_textbox_delete_at_cursor(kui_state* state, kui_control self) {

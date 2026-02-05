@@ -97,7 +97,7 @@ b8 kmaterial_renderer_initialize(kmaterial_renderer* out_state, u32 max_material
 	KDEBUG("Created material global storage buffer.");
 
 	// Some default settings.
-	out_state->settings.fog_colour = (colour3){0.6f, 0.7f, 0.8f};
+	out_state->settings.fog_colour = (colour4){0.6f, 0.7f, 0.8f, 1.0f};
 	out_state->settings.fog_start = 1.0f;
 	out_state->settings.fog_end = 1000.0f;
 
@@ -351,7 +351,7 @@ void kmaterial_renderer_update(kmaterial_renderer* state) {
 	}
 }
 
-void kmaterial_renderer_set_fog_colour(kmaterial_renderer* state, colour3 colour) {
+void kmaterial_renderer_set_fog_colour(kmaterial_renderer* state, colour4 colour) {
 	state->settings.fog_colour = colour;
 }
 

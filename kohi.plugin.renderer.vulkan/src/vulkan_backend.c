@@ -3098,7 +3098,7 @@ u32 vulkan_renderer_shader_acquire_binding_set_instance(renderer_backend_interfa
 		}
 	}
 
-	KERROR("%s - Failed to find a free instance in shader '%s' for binding set %u.", kname_string_get(internal_shader->name), binding_set);
+	KERROR("%s - Failed to find a free instance in shader '%s' for binding set %u.", __FUNCTION__, kname_string_get(internal_shader->name), binding_set);
 	return INVALID_ID_U32;
 }
 
