@@ -78,8 +78,8 @@ void kui_image_box_control_width_set(kui_state* state, kui_control self, i32 wid
 	kui_image_box_control* typed_data = (kui_image_box_control*)base;
 
 	vertex_2d* verts = typed_data->geometry.vertices;
-	verts[1].position.y = width;
-	verts[3].position.y = width;
+	verts[1].position.x = width;
+	verts[3].position.x = width;
 
 	// Upload the new vertex data.
 	struct renderer_system_state* renderer_system = engine_systems_get()->renderer_system;

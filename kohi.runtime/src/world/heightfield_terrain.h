@@ -76,6 +76,7 @@ typedef struct hf_vertex_3d {
 // 8 quads, 2 quads per meter, covers 4^2 meters.
 typedef struct hf_chunk {
 	u64 vertex_buffer_offset;
+	u32 vertex_offset;
 
 	ktexture albedo_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
 	ktexture normal_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
@@ -163,29 +164,18 @@ typedef struct hf_terrain_render_data {
 
 } hf_terrain_render_data;
 
-typedef enum hf_terrain_direction {
-	// +z
-	HF_TERRAIN_DIRECTION_N,
-	HF_TERRAIN_DIRECTION_NE,
-	HF_TERRAIN_DIRECTION_NW,
-	// -x
-	HF_TERRAIN_DIRECTION_E,
-	// -z
-	HF_TERRAIN_DIRECTION_S,
-	HF_TERRAIN_DIRECTION_SE,
-	HF_TERRAIN_DIRECTION_SW,
-	// +x
-	HF_TERRAIN_DIRECTION_W,
-} hf_terrain_direction;
-
 KAPI hf_terrain hf_terrain_generate(u16 blocks_x, u16 blocks_z);
 
 KAPI void hf_terrain_destroy(hf_terrain* t);
 
 KAPI void hf_terrain_get_render_data(const hf_terrain* t, struct frame_data* p_frame_data, hf_terrain_render_data* render_data);
 
-KAPI hf_block* hf_terrain_get_block_relative_to(hf_terrain* t, hf_block* block, hf_terrain_direction direction);
+KAPI const hf_block* hf_terrain_get_block_at(const hf_terrain* t, u8 x, u8 z);
+KAPI const hf_chunk* hf_terrain_block_get_chunk_at(const hf_block* block, u8 x, u8 z);
 
-KAPI hf_chunk* hf_terrain_block_get_chunk_at(hf_block* block, u8 x, u8 z);
+KAPI i32 hf_terrain_chunk_get_vert_index_at(const hf_chunk* chunk, u8 x, u8 z);
 
-KAPI hf_chunk* hf_terrain_get_chunk_relative_to(hf_terrain* t, hf_block* block, hf_chunk* chunk, hf_terrain_direction direction);
+// NOTE: recalculates ALL vertices (normals and tangents) for the entire terrain. Don't do this unless absolutely required.
+KAPI void hf_terrain_recalculate_vertices(hf_terrain* t);
+
+KAPI void hf_terrain_chunk_recalculate_vertices(hf_terrain* t, const hf_chunk* chunk);

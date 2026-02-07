@@ -32,6 +32,10 @@ typedef struct kshadow_pass_data {
 	kshader hmt_shader;
 	u32 hmt_set0_instance_id;
 
+	// Heightfield terrain
+	kshader hft_shader;
+	u32 hft_set0_instance_id;
+
 	ktexture default_base_colour;
 
 	u32 resolution;
@@ -182,6 +186,8 @@ typedef struct kshadow_pass_render_data {
 	// Terrain geo data
 	u16 terrain_count;
 	hm_terrain_render_data* terrains;
+
+	hf_terrain_render_data hf_terrain_data;
 
 	// Indicates if the pass should be done.
 	b8 do_pass;

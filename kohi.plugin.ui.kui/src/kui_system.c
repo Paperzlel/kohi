@@ -412,6 +412,7 @@ static void fix_child_levels_r(kui_state* state, kui_control parent) {
 }
 
 b8 kui_system_control_add_child(kui_state* state, kui_control parent, kui_control child) {
+	KASSERT(parent.val != child.val);
 	if (child.val == INVALID_KUI_CONTROL.val) {
 		return false;
 	}

@@ -99,6 +99,18 @@ assets = [
         path = "assets/shaders/Shader.Shadow_Terrain_vert.glsl"
     }
     {
+        name = "Shader.Shadow_HFTerrain"
+        path = "assets/shaders/Shader.Shadow_HFTerrain.ksc"
+    }
+    {
+        name = "Shader.Shadow_HFTerrain_frag"
+        path = "assets/shaders/Shader.Shadow_HFTerrain_frag.glsl"
+    }
+    {
+        name = "Shader.Shadow_HFTerrain_vert"
+        path = "assets/shaders/Shader.Shadow_HFTerrain_vert.glsl"
+    }
+    {
         name = "Shader.Skybox"
         path = "assets/shaders/Shader.Skybox.ksc"
     }

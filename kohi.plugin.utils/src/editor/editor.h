@@ -166,6 +166,7 @@ typedef struct editor_state {
 	kui_control hft_mode_paint_content;
 	kui_control hft_paint_brush_diameter_textbox;
 	kui_control hft_paint_brush_strength_textbox;
+	kui_control hft_paint_brush_erase_checkbox;
 	kui_control hft_paint_brush_material_index_textbox;
 	kui_control hft_paint_brush_diameter_label;
 	kui_control hft_paint_brush_strength_label;
@@ -177,7 +178,8 @@ typedef struct editor_state {
 
 	// HF Paint state
 	u32 hft_paint_brush_diameter;
-	u8 hft_paint_brush_strength;
+	// Negative strength erases.
+	i8 hft_paint_brush_strength;
 	u8 hft_paint_material_index;
 
 } editor_state;

@@ -44,6 +44,7 @@
 #include <kui_plugin_main.h>
 #include <math/kmath.h>
 #include <platform/platform.h>
+#include <renderer/renderer_frontend.h>
 #include <systems/ktimeline_system.h>
 #include <utils/ksort.h>
 
@@ -127,6 +128,7 @@ static void hft_paint_brush_strength_textbox_on_key(kui_state* state, kui_contro
 static void hft_paint_material_index_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 
 static void hf_terrain_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
+static void hf_terrain_erase_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 
 b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 	*memory_requirement = sizeof(editor_state);
@@ -162,8 +164,8 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 	}
 
 	// Editor camera. Use the same view properties of the world camera, but different starting position/rotation.
-	vec3 editor_cam_pos = (vec3){-10.0f, 10.0f, -10.0f};
-	vec3 editor_cam_rot_euler_radians = (vec3){deg_to_rad(-35.0f), deg_to_rad(225.0f), deg_to_rad(0.0f)};
+	vec3 editor_cam_pos = (vec3){-2.571f, 4.75f, 0.929f};
+	vec3 editor_cam_rot_euler_radians = (vec3){deg_to_rad(-29.0f), deg_to_rad(253.0f), deg_to_rad(0.0f)};
 	rect_2di world_vp_rect = {0, 0, 1280 - 40, 720 - 40};
 	state->editor_camera = kcamera_create(KCAMERA_TYPE_3D, world_vp_rect, editor_cam_pos, editor_cam_rot_euler_radians, deg_to_rad(45.0f), 0.1f, 1000.0f);
 
@@ -563,26 +565,25 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 		KASSERT(kui_system_control_add_child(kui_state, state->hf_terrain_bg_panel, state->hf_terrain_title));
 		kui_control_position_set(kui_state, state->hf_terrain_title, (vec3){10, -5.0f, 0});
 
-		// Paint sub-mode
+		// Paint sub-mode - active by default
 		{
 
 			// Some reasonable defaults.
-			state->hft_paint_brush_diameter = 20;
-			state->hft_paint_brush_strength = 8;
-			state->hft_paint_material_index = 0;
+			state->hft_paint_brush_diameter = 19;
+			state->hft_paint_brush_strength = 5;
+			state->hft_paint_material_index = 1;
 
 			state->hft_mode_paint_checkbox = kui_checkbox_control_create(kui_state, "hft_mode_paint_checkbox", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Paint");
 			KASSERT(kui_system_control_add_child(kui_state, state->hf_terrain_bg_panel, state->hft_mode_paint_checkbox));
 			kui_control_position_set(kui_state, state->hft_mode_paint_checkbox, (vec3){5, 50, 0});
 			kui_control_set_user_data(kui_state, state->hft_mode_paint_checkbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
 			kui_checkbox_set_on_checked(kui_state, state->hft_mode_paint_checkbox, hf_terrain_checkbox_check_changed);
+			kui_checkbox_set_checked(kui_state, state->hft_mode_paint_checkbox, true);
 
 			// Content pane
 			state->hft_mode_paint_content = kui_base_control_create(kui_state, "hft_mode_paint_content", KUI_CONTROL_TYPE_BASE);
 			KASSERT(kui_system_control_add_child(kui_state, state->hf_terrain_bg_panel, state->hft_mode_paint_content));
 			kui_control_position_set(kui_state, state->hft_mode_paint_content, (vec3){5, 90, 0});
-			kui_control_set_is_active(kui_state, state->hft_mode_paint_content, false);
-			kui_control_set_is_visible(kui_state, state->hft_mode_paint_content, false);
 
 			state->hft_paint_brush_diameter_label = kui_label_control_create(kui_state, "hft_paint_brush_diameter_label", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Diameter");
 			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_paint_content, state->hft_paint_brush_diameter_label));
@@ -597,25 +598,35 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 			kui_control_position_set(kui_state, state->hft_paint_material_index_label, (vec3){5, 100, 0});
 
 			// Paint brush diameter textbox.
-			state->hft_paint_brush_diameter_textbox = kui_textbox_control_create(kui_state, "hft_paint_brush_diameter_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "20", KUI_TEXTBOX_TYPE_INT);
+			state->hft_paint_brush_diameter_textbox = kui_textbox_control_create(kui_state, "hft_paint_brush_diameter_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "", KUI_TEXTBOX_TYPE_INT);
 			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_paint_content, state->hft_paint_brush_diameter_textbox));
 			kui_control_position_set(kui_state, state->hft_paint_brush_diameter_textbox, (vec3){state->hf_terrain_right_col_x, 0, 0});
+			kui_textbox_i64_set(kui_state, state->hft_paint_brush_diameter_textbox, state->hft_paint_brush_diameter);
 			KASSERT(kui_textbox_control_width_set(kui_state, state->hft_paint_brush_diameter_textbox, 120));
 			kui_control_set_user_data(kui_state, state->hft_paint_brush_diameter_textbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
 			kui_control_set_on_key(kui_state, state->hft_paint_brush_diameter_textbox, hft_paint_brush_diameter_textbox_on_key);
 
 			// Strength
-			state->hft_paint_brush_strength_textbox = kui_textbox_control_create(kui_state, "hft_paint_brush_strength_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "8", KUI_TEXTBOX_TYPE_INT);
+			state->hft_paint_brush_strength_textbox = kui_textbox_control_create(kui_state, "hft_paint_brush_strength_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "", KUI_TEXTBOX_TYPE_INT);
 			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_paint_content, state->hft_paint_brush_strength_textbox));
 			kui_control_position_set(kui_state, state->hft_paint_brush_strength_textbox, (vec3){state->hf_terrain_right_col_x, 50, 0});
+			kui_textbox_i64_set(kui_state, state->hft_paint_brush_strength_textbox, state->hft_paint_brush_strength);
 			KASSERT(kui_textbox_control_width_set(kui_state, state->hft_paint_brush_strength_textbox, 120));
 			kui_control_set_user_data(kui_state, state->hft_paint_brush_strength_textbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
 			kui_control_set_on_key(kui_state, state->hft_paint_brush_strength_textbox, hft_paint_brush_strength_textbox_on_key);
 
+			// Erase checkbox.
+			state->hft_paint_brush_erase_checkbox = kui_checkbox_control_create(kui_state, "hft_paint_brush_erase_checkbox", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Erase");
+			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_paint_content, state->hft_paint_brush_erase_checkbox));
+			kui_control_position_set(kui_state, state->hft_paint_brush_erase_checkbox, (vec3){state->hf_terrain_right_col_x + 130, 50, 0});
+			kui_control_set_user_data(kui_state, state->hft_paint_brush_erase_checkbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
+			kui_checkbox_set_on_checked(kui_state, state->hft_paint_brush_erase_checkbox, hf_terrain_erase_checkbox_check_changed);
+
 			// Material index.
-			state->hft_paint_brush_material_index_textbox = kui_textbox_control_create(kui_state, "hft_paint_brush_material_index_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "0", KUI_TEXTBOX_TYPE_INT);
+			state->hft_paint_brush_material_index_textbox = kui_textbox_control_create(kui_state, "hft_paint_brush_material_index_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "", KUI_TEXTBOX_TYPE_INT);
 			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_paint_content, state->hft_paint_brush_material_index_textbox));
 			kui_control_position_set(kui_state, state->hft_paint_brush_material_index_textbox, (vec3){state->hf_terrain_right_col_x, 100, 0});
+			kui_textbox_i64_set(kui_state, state->hft_paint_brush_material_index_textbox, state->hft_paint_material_index);
 			KASSERT(kui_textbox_control_width_set(kui_state, state->hft_paint_brush_material_index_textbox, 120));
 			kui_control_set_user_data(kui_state, state->hft_paint_brush_material_index_textbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
 			kui_control_set_on_key(kui_state, state->hft_paint_brush_material_index_textbox, hft_paint_material_index_textbox_on_key);
@@ -706,7 +717,7 @@ b8 editor_open(struct editor_state* state, kname scene_name, kname scene_package
 	KINFO("Opening editor scene...");
 
 	// Creates scene and triggers load.
-	state->edit_scene = kscene_create(scene_asset->content, 0, 0);
+	state->edit_scene = kscene_create(scene_asset->content, 0, 0, true);
 	state->scene_asset_name = scene_name;
 	state->scene_package_name = scene_package_name;
 
@@ -1729,42 +1740,39 @@ static void hf_terrain_paint(editor_state* state, vec3 pos, vec3 normal, const h
 	f32 u = local_x / HF_BLOCK_SIZE_WORLD;
 	f32 v = local_z / HF_BLOCK_SIZE_WORLD;
 
-	u *= 4; // HF_TERRAIN_SPLATMAP_RESOLUTION;
-	v *= 4; // HF_TERRAIN_SPLATMAP_RESOLUTION;
+	u *= 4;
+	v *= 4;
 
 	if (u >= HF_TERRAIN_SPLATMAP_RESOLUTION || v >= HF_TERRAIN_SPLATMAP_RESOLUTION) {
 		return;
 	}
 
-	/* i32 brush_diameter = 20;
-	u8 brush_strength = 8; // 0-255, but 32 is really strong.;
-	// NOTE: base material doesn't get painted.
-	u8 material_index = 0; */
-
 	u32 brush_diameter = state->hft_paint_brush_diameter;
-	u8 brush_strength = state->hft_paint_brush_strength;
+	i8 brush_strength = state->hft_paint_brush_strength;
 	u8 material_index = state->hft_paint_material_index;
 
 	i32 radius_texels = brush_diameter * 0.5f;
 
-	i32 min_x = KMAX(kfloor(u - radius_texels), 0);
-	i32 min_z = KMAX(kfloor(v - radius_texels), 0);
-	i32 max_x = KMIN(kceil(u + radius_texels), HF_TERRAIN_SPLATMAP_RESOLUTION - 1);
-	i32 max_z = KMIN(kceil(v + radius_texels), HF_TERRAIN_SPLATMAP_RESOLUTION - 1);
+	i32 absolute_min_x = kfloor(u - radius_texels);
+	i32 absolute_min_z = kfloor(v - radius_texels);
+	i32 absolute_max_x = kceil(u + radius_texels);
+	i32 absolute_max_z = kceil(v + radius_texels);
 
-	// Check if there is overflow into any of the surrounding 8 chunks.
+	i32 min_x = KMAX(absolute_min_x, 0);
+	i32 min_z = KMAX(absolute_min_z, 0);
+	i32 max_x = KMIN(absolute_max_x, HF_TERRAIN_SPLATMAP_RESOLUTION);
+	i32 max_z = KMIN(absolute_max_z, HF_TERRAIN_SPLATMAP_RESOLUTION);
+
+	// TODO: Check if there is overflow into a neighboring block.
 	// If there is, these unclipped coords will need to be carried over to them as well,
 	// translated to match thier splatmap's coords.
-
-	min_x = KMAX(min_x, 0);
-	min_z = KMAX(min_z, 0);
-	max_x = KMIN(max_x, HF_TERRAIN_SPLATMAP_RESOLUTION - 1);
-	max_z = KMIN(max_z, HF_TERRAIN_SPLATMAP_RESOLUTION - 1);
 
 	u32 width = KMAX(max_x - min_x, 1);
 	u32 height = KMAX(max_z - min_z, 1);
 
-	vec2 brush_center = vec2_create(min_x + brush_diameter * 0.5f, min_z + brush_diameter * 0.5f);
+	// NOTE: the brush center should be based on the texel position, not the center of the area being painted.
+	vec2 brush_center = vec2_create(absolute_min_x + radius_texels, absolute_min_z + radius_texels);
+	f32 strength = brush_strength / 255.0f;
 
 	// FIXME: Maybe have some sort of buffer that sticks around for this...
 	u32 total_px = width * height;
@@ -1773,41 +1781,38 @@ static void hf_terrain_paint(editor_state* state, vec3 pos, vec3 normal, const h
 		for (u32 x = 0; x < width; ++x) {
 			vec2 pos = vec2_create(min_x + x, min_z + z);
 			f32 distance = vec2_distance(pos, brush_center);
-			f32 weight = kfalloff_smooth(distance / brush_strength);
+			f32 weight = kfalloff_smooth(distance / radius_texels);
+			// }
 			u32 new_colour_base = ((z * width + x) * 4);
-			u32 new_colour_index = new_colour_base + material_index;
 			u32 cur_colour_base = (((min_z + z) * HF_TERRAIN_SPLATMAP_RESOLUTION + (min_x + x)) * 4);
-			u32 cur_colour_index = cur_colour_base + material_index;
 
-			// Get current pixel content
-			u8 px_channel = block->splatmap_pixels[cur_colour_index];
-			u16 temp = px_channel;
-			temp += (u16)(weight * brush_strength);
-			px_channel = (u8)KCLAMP(temp, 0, 255);
-
-			// Write back to the splatmap px as well as the new array to write to the image.
-			block->splatmap_pixels[cur_colour_index] = px_channel;
-			new_colour[new_colour_index] = px_channel;
+			f32 delta = weight * strength;
+			f32 weights[4];
+			for (u8 c = 0; c < 4; ++c) {
+				weights[c] = block->splatmap_pixels[cur_colour_base + c] / 255.0f;
+			}
+			weights[material_index] += delta;
 
 			// Calculate overflow between all channels and reduce the others if needed.
 			f32 sum = 0.0f;
 			for (u8 c = 0; c < 4; ++c) {
-				sum += block->splatmap_pixels[cur_colour_base + c] / 255.0f;
+				sum += weights[c];
 			}
 
 			f32 overflow = sum - 1.0f;
-			if (overflow >= 0.0f) {
+			if (overflow > 0.0f) {
 				f32 reducible = 0.0f;
 
 				for (u8 c = 0; c < 4; ++c) {
 					if (c == material_index) {
 						continue;
 					}
-					reducible += block->splatmap_pixels[cur_colour_base + c] / 255.0f;
+					reducible += weights[c];
 				}
 
 				if (reducible <= 0.0f) {
 					// Nothing to reduce. Clamp?
+					weights[material_index] -= overflow;
 				} else {
 					f32 scale = overflow / reducible;
 					for (u8 c = 0; c < 4; ++c) {
@@ -1815,21 +1820,236 @@ static void hf_terrain_paint(editor_state* state, vec3 pos, vec3 normal, const h
 							continue;
 						}
 
-						f32 weight = block->splatmap_pixels[cur_colour_base + c] / 255.0f;
-						f32 reduction = weight * scale * (1.0f - weight);
-						block->splatmap_pixels[cur_colour_index] -= (u8)KCLAMP(reduction * 255, 0, 255);
-						new_colour[new_colour_index] = block->splatmap_pixels[cur_colour_index];
+						f32 reduction = weights[c] * scale; // * (1.0f - weight);
+						weights[c] -= reduction;
 					}
 				}
+			}
+
+			for (u8 c = 0; c < 4; ++c) {
+				u8 px_channel = (u8)KCLAMP(weights[c] * 255, 0, 255);
+				block->splatmap_pixels[cur_colour_base + c] = px_channel;
+				new_colour[new_colour_base + c] = px_channel;
 			}
 		}
 	}
 
-	/* u32 px_index = v * HF_TERRAIN_SPLATMAP_RESOLUTION + u; */
-	/* u8 new_colour[4] = {255, 0, 0, 0}; */
 	texture_write_data(block->splatmap, 32, min_x, min_z, 0, width, height, 1, new_colour);
 
 	KFREE_TYPE_CARRAY(new_colour, u8, total_px * 4);
+}
+
+static void hf_terrain_adjust_vertex_at(hf_terrain* terrain, u32 index) {
+
+	terrain->vertices[index].position.y += 0.01f;
+
+	/* struct renderer_system_state* renderer_state = engine_systems_get()->renderer_system;
+	krenderbuffer vertex_buffer = renderer_renderbuffer_get(renderer_state, kname_create(KRENDERBUFFER_NAME_VERTEX_STANDARD));
+	// Load the data.
+	u32 size = sizeof(hf_vertex_3d);
+	if (!renderer_renderbuffer_load_range(
+			renderer_state,
+			vertex_buffer,
+			terrain->base_vertex_buffer_offset + (index * sizeof(hf_vertex_3d)),
+			size,
+			&terrain->vertices[index], false)) {
+
+		KERROR("vulkan_renderer_geometry_vertex_update failed to upload to the vertex buffer!");
+	} */
+}
+
+static const hf_chunk* hf_terrain_get_next_vertex_index(const hf_terrain* terrain, const hf_block* block, const hf_chunk* chunk, u32 x, u32 z, i8 rel_x, i8 rel_z, i64* out_index) {
+	i16 block_x = block->x;
+	i16 block_z = block->z;
+	i16 chunk_x = chunk->x;
+	i16 chunk_z = chunk->z;
+
+	i16 next_x = x + rel_x;
+	i16 next_z = z + rel_z;
+
+	// Crosses a chunk border.
+	if (next_x > HF_CHUNK_QUAD_COUNT) {
+		chunk_x++;
+		next_x -= HF_VERTEX_STRIDE;
+		// Check if crossing a block border
+		if (chunk_x >= HF_BLOCK_CHUNK_DIM) {
+			block_x++;
+			chunk_x = 0;
+			if (block_x >= terrain->block_count_x) {
+				// This would proceed beyond the furthest border. Boot.
+				*out_index = -1;
+				return KNULL;
+			}
+		}
+	} else if (next_x < 0) {
+		chunk_x--;
+		next_x += HF_VERTEX_STRIDE;
+		// Check if crossing a block border
+		if (chunk_x < 0) {
+			block_x--;
+			chunk_x = HF_BLOCK_CHUNK_DIM - 1;
+			if (block_x < 0) {
+				// This would proceed beyond the furthest border. Boot.
+				*out_index = -1;
+				return KNULL;
+			}
+		}
+	}
+
+	// Crosses a chunk border.
+	if (next_z > HF_CHUNK_QUAD_COUNT) {
+		chunk_z++;
+		next_z -= HF_VERTEX_STRIDE;
+		// Check if crossing a block border
+		if (chunk_z >= HF_BLOCK_CHUNK_DIM) {
+			block_z++;
+			chunk_z = 0;
+			if (block_z >= terrain->block_count_z) {
+				// This would proceed beyond the furthest border. Boot.
+				*out_index = -1;
+				return KNULL;
+			}
+		}
+	} else if (next_z < 0) {
+		chunk_z--;
+		next_z += HF_VERTEX_STRIDE;
+		// Check if crossing a block border
+		if (chunk_z < 0) {
+			block_z--;
+			chunk_z = HF_BLOCK_CHUNK_DIM - 1;
+			if (block_z < 0) {
+				// This would proceed beyond the furthest border. Boot.
+				*out_index = -1;
+				return KNULL;
+			}
+		}
+	}
+
+	const hf_block* new_block = hf_terrain_get_block_at(terrain, block_x, block_z);
+	const hf_chunk* new_chunk = hf_terrain_block_get_chunk_at(new_block, chunk_x, chunk_z);
+
+	*out_index = hf_terrain_chunk_get_vert_index_at(new_chunk, next_x, next_z);
+	return new_chunk;
+}
+
+static void hf_terrain_recalc_and_update_verts(hf_terrain* terrain, const hf_chunk** p_chunks, u8 count) {
+
+	/* hf_terrain_recalculate_vertices(terrain); */
+
+	struct renderer_system_state* renderer_state = engine_systems_get()->renderer_system;
+	krenderbuffer vertex_buffer = renderer_renderbuffer_get(renderer_state, kname_create(KRENDERBUFFER_NAME_VERTEX_STANDARD));
+
+	u32 size = sizeof(hf_vertex_3d) * HF_CHUNK_VERTEX_COUNT;
+	for (u8 i = 0; i < count; ++i) {
+		hf_terrain_chunk_recalculate_vertices(terrain, p_chunks[i]);
+		if (!renderer_renderbuffer_load_range(
+				renderer_state,
+				vertex_buffer,
+				p_chunks[i]->vertex_buffer_offset,
+				size,
+				terrain->vertices + p_chunks[i]->vertex_offset,
+				false)) {
+			KERROR("HF terrain vert updates Failed!");
+		}
+	}
+}
+
+static void hf_terrain_do_elevation(editor_state* state, vec3 pos, vec3 normal, const hf_block* block, const hf_chunk* chunk) {
+
+	hf_terrain* terrain = kscene_hf_terrain_get(state->edit_scene);
+
+	KINFO("%s - pos=%V3.3", __FUNCTION__, &pos);
+
+	// Get closest vertex.
+	// FIXME: optimize this.
+	f32 shortest_dist = 9999990.0f;
+	i64 index = -1;
+	const hf_chunk* new_chunk;
+	/* pos = vec3_add(pos, chunk->aabb.min); */
+	/* hf_vertex_3d vert = {0}; */
+
+	u32 z = 0;
+	u32 x = 0;
+	for (u32 i = 0; i < HF_CHUNK_VERTEX_COUNT; ++i) {
+		hf_vertex_3d v = terrain->vertices[chunk->vertex_offset + i];
+		f32 dist = vec3_distance_squared(vec3_from_vec4(v.position), pos);
+		if (dist < shortest_dist) {
+			shortest_dist = dist;
+			index = (block->index * HF_BLOCK_VERTEX_COUNT) + (chunk->index * HF_CHUNK_VERTEX_COUNT) + i;
+			/* vert = v; */
+			z = i / HF_VERTEX_STRIDE;
+			x = i % HF_VERTEX_STRIDE;
+		}
+	}
+
+	KTRACE("X/Z, %u/%u", x, z);
+
+	u8 chunk_update_count = 0;
+	const hf_chunk* update_list[4];
+	hf_terrain_adjust_vertex_at(terrain, index);
+	update_list[chunk_update_count] = chunk;
+	chunk_update_count++;
+
+	// Check if the vertex is shared with the next chunk on the X axis.
+	{
+		index = -1;
+		if (x == HF_CHUNK_QUAD_COUNT) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 1, 0, &index);
+		} else if (x == 0) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, -1, 0, &index);
+		}
+
+		if (index >= 0) {
+			hf_terrain_adjust_vertex_at(terrain, index);
+			if (new_chunk != chunk) {
+				update_list[chunk_update_count] = new_chunk;
+				chunk_update_count++;
+			}
+		}
+	}
+
+	// Check if the vertex is shared with the next chunk on the Z axis.
+	{
+		index = -1;
+		if (z == HF_CHUNK_QUAD_COUNT) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 0, 1, &index);
+		} else if (z == 0) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 0, -1, &index);
+		}
+
+		if (index >= 0) {
+			hf_terrain_adjust_vertex_at(terrain, index);
+			if (new_chunk != chunk) {
+				update_list[chunk_update_count] = new_chunk;
+				chunk_update_count++;
+			}
+		}
+	}
+
+	// If in a corner, also need to check if there's a diagonally-opposite shared vertex.
+	{
+		index = -1;
+		// All intercardinal directions need checking.
+		if (x == HF_CHUNK_QUAD_COUNT && z == HF_CHUNK_QUAD_COUNT) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 1, 1, &index);
+		} else if (x == HF_CHUNK_QUAD_COUNT && z == 0) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 1, -1, &index);
+		} else if (x == 0 && z == HF_CHUNK_QUAD_COUNT) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, -1, 1, &index);
+		} else if (x == 0 && z == 0) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, -1, -1, &index);
+		}
+
+		if (index >= 0) {
+			hf_terrain_adjust_vertex_at(terrain, index);
+			if (new_chunk != chunk) {
+				update_list[chunk_update_count] = new_chunk;
+				chunk_update_count++;
+			}
+		}
+	}
+
+	hf_terrain_recalc_and_update_verts(terrain, update_list, chunk_update_count);
 }
 
 static b8 editor_on_drag(u16 code, void* sender, void* listener_inst, event_context context) {
@@ -1936,6 +2156,7 @@ static b8 editor_on_drag(u16 code, void* sender, void* listener_inst, event_cont
 					hf_terrain_paint(state, pos, normal, &block, &chunk);
 					break;
 				case HF_TERRAIN_EDIT_MODE_ELEVATION:
+					hf_terrain_do_elevation(state, pos, normal, &block, &chunk);
 					break;
 				case HF_TERRAIN_EDIT_MODE_CHUNK:
 					break;
@@ -2636,6 +2857,21 @@ static void hf_terrain_checkbox_check_changed(struct kui_state* state, kui_contr
 	}
 }
 
+static void hf_terrain_erase_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event) {
+	editor_state* editor = kui_control_get_user_data(state, self);
+
+	const char* entry_control_text = kui_textbox_text_get(state, editor->hft_paint_brush_strength_textbox);
+	u32 len = string_length(entry_control_text);
+	if (len > 0) {
+		const char* val = kui_textbox_text_get(state, editor->hft_paint_brush_strength_textbox);
+		i64 x;
+		if (string_to_i64(val, &x)) {
+			editor->hft_paint_brush_strength = (i8)KCLAMP((i8)(x *= -1), -127, 127);
+			kui_textbox_i64_set(state, editor->hft_paint_brush_strength_textbox, x);
+		}
+	}
+}
+
 static void hft_paint_brush_diameter_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt) {
 	if (evt.type == KUI_KEYBOARD_EVENT_TYPE_PRESS) {
 		u16 key_code = evt.key;
@@ -2671,7 +2907,11 @@ static void hft_paint_brush_strength_textbox_on_key(kui_state* state, kui_contro
 				const char* val = kui_textbox_text_get(state, self);
 				i64 x;
 				if (string_to_i64(val, &x)) {
-					editor->hft_paint_brush_strength = (u8)KCLAMP((u8)x, 1, 255);
+					editor->hft_paint_brush_strength = (i8)KCLAMP((i8)x, -127, 127);
+
+					// Update the checkbox to be checked if negative.
+					b8 checked = x < 0;
+					kui_checkbox_set_checked(state, editor->hft_paint_brush_erase_checkbox, checked);
 				}
 			}
 		}

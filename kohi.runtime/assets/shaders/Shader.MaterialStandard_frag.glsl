@@ -287,6 +287,56 @@ void main() {
 
     vec3 base_reflectivity;
 
+    // Shadows: 1.0 means NOT in shadow, which is the default.
+    float shadow = 1.0;
+    // Only perform shadow calculations if this receives shadows.
+    if(flag_get(base_material.flags, KMATERIAL_FLAG_RECIEVES_SHADOW_BIT)) { 
+
+        // Generate shadow value based on current fragment position vs shadow map.
+        // Light and normal are also taken in the case that a bias is to be used.
+        vec4 frag_position_view_space = view * in_dto.frag_position;
+        float depth = abs(frag_position_view_space).z;
+        // Get the cascade index from the current fragment's position.
+        int cascade_index = -1;
+        for(int i = 0; i < KMATERIAL_UBO_MAX_SHADOW_CASCADES; ++i) {
+            if(depth < global_settings.cascade_splits[i]) {
+                cascade_index = i;
+                break;
+            }
+        }
+
+        if(global_settings.render_mode == 3) {
+            switch(cascade_index) {
+                case 0:
+                    cascade_colour = vec3(1.0, 0.25, 0.25);
+                    break;
+                case 1:
+                    cascade_colour = vec3(0.25, 1.0, 0.25);
+                    break;
+                case 2:
+                    cascade_colour = vec3(0.25, 0.25, 1.0);
+                    break;
+                case 3:
+                    cascade_colour = vec3(1.0, 1.0, 0.25);
+                    break;
+            }
+        }
+        if(cascade_index != -1) {
+            shadow = calculate_shadow(in_dto.light_space_frag_pos[cascade_index], normal, cascade_index);
+        }
+        // Fade out the shadow map past a certain distance.
+        float fade_start = global_settings.shadow_distance;
+        float fade_distance = global_settings.shadow_fade_distance;
+
+        // The end of the fade-out range.
+        float fade_end = fade_start + fade_distance;
+
+        float zclamp = clamp(length(view_position.xyz - in_dto.frag_position.xyz), fade_start, fade_end);
+        float fade_factor = (fade_end - zclamp) / (fade_end - fade_start + 0.00001); // Avoid divide by 0
+
+        shadow = clamp(shadow + (1.0 - fade_factor), 0.0, 1.0);
+    } 
+
     if(base_material.material_type == MAT_TYPE_STANDARD) {
 
         // Base colour
@@ -450,6 +500,9 @@ void main() {
         // Apply tint to refraction only. Alpha is the "strength"
         if(global_settings.render_mode == 0) {
             vec4 tint = vec4(0.0, 0.3, 0.5, 1.0); // TODO: configurable.
+            // If in shadow, reduce the tint colour some.
+            tint -= (vec4(0.1, 0.05, 0.01, 0.0) * (1.0 - shadow));
+            tint = clamp(tint, vec4(0, 0, 0, 1), vec4(1));
             refract_colour = mix(refract_colour, tint, tint.a * (tint_depth_influence));
         }
 
@@ -457,58 +510,6 @@ void main() {
         albedo = mix(refract_colour, reflect_colour, fresnel_factor * clamp((water_depth / reflection_edge_depth_falloff), 0.0, 1.0)).rgb;
         alpha = 1.0;
     }
-
-    // Shadows: 1.0 means NOT in shadow, which is the default.
-    float shadow = 1.0;
-    // Only perform shadow calculations if this receives shadows.
-    if(flag_get(base_material.flags, KMATERIAL_FLAG_RECIEVES_SHADOW_BIT)) { 
-
-        // Generate shadow value based on current fragment position vs shadow map.
-        // Light and normal are also taken in the case that a bias is to be used.
-        vec4 frag_position_view_space = view * in_dto.frag_position;
-        float depth = abs(frag_position_view_space).z;
-        // Get the cascade index from the current fragment's position.
-        int cascade_index = -1;
-        for(int i = 0; i < KMATERIAL_UBO_MAX_SHADOW_CASCADES; ++i) {
-            if(depth < global_settings.cascade_splits[i]) {
-                cascade_index = i;
-                break;
-            }
-        }
-        if(cascade_index == -1) {
-            cascade_index = int(KMATERIAL_UBO_MAX_SHADOW_CASCADES);
-        }
-
-        if(global_settings.render_mode == 3) {
-            switch(cascade_index) {
-                case 0:
-                    cascade_colour = vec3(1.0, 0.25, 0.25);
-                    break;
-                case 1:
-                    cascade_colour = vec3(0.25, 1.0, 0.25);
-                    break;
-                case 2:
-                    cascade_colour = vec3(0.25, 0.25, 1.0);
-                    break;
-                case 3:
-                    cascade_colour = vec3(1.0, 1.0, 0.25);
-                    break;
-            }
-        }
-        shadow = calculate_shadow(in_dto.light_space_frag_pos[cascade_index], normal, cascade_index);
-
-        // Fade out the shadow map past a certain distance.
-        float fade_start = global_settings.shadow_distance;
-        float fade_distance = global_settings.shadow_fade_distance;
-
-        // The end of the fade-out range.
-        float fade_end = fade_start + fade_distance;
-
-        float zclamp = clamp(length(view_position.xyz - in_dto.frag_position.xyz), fade_start, fade_end);
-        float fade_factor = (fade_end - zclamp) / (fade_end - fade_start + 0.00001); // Avoid divide by 0
-
-        shadow = clamp(shadow + (1.0 - fade_factor), 0.0, 1.0);
-    } 
 
     if(global_settings.render_mode == 0 || global_settings.render_mode == 1 || global_settings.render_mode == 3) {
         vec3 view_direction = normalize(view_position.xyz - in_dto.frag_position.xyz);

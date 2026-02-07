@@ -97,18 +97,6 @@ layout(location = 0) in dto {
 	vec2 tex_coord;
 } in_dto;
 
-/** 
- * Used to convert from NDC -> UVW by taking the x/y components and transforming them:
- * 
- *   xy *= 0.5 + 0.5
- */
-const mat4 ndc_to_uvw = mat4( 
-	0.5, 0.0, 0.0, 0.0,
-	0.0, 0.5, 0.0, 0.0,
-	0.0, 0.0, 1.0, 0.0,
-	0.5, 0.5, 0.0, 1.0 
-);
-
 // =========================================================
 // Outputs
 // =========================================================
@@ -237,9 +225,6 @@ void main() {
 			break;
 		}
 	}
-	if(cascade_index == -1) {
-		cascade_index = int(KMATERIAL_UBO_MAX_SHADOW_CASCADES);
-	}
 
 	if(global_settings.render_mode == 3) {
 		switch(cascade_index) {
@@ -257,20 +242,21 @@ void main() {
 				break;
 		}
 	}
-	shadow = calculate_shadow(in_dto.light_space_frag_pos[cascade_index], normal, cascade_index);
+    if(cascade_index != -1) {
+	    shadow = calculate_shadow(in_dto.light_space_frag_pos[cascade_index], normal, cascade_index);
+    
+        // Fade out the shadow map past a certain distance.
+        float fade_start = global_settings.shadow_distance;
+        float fade_distance = global_settings.shadow_fade_distance;
 
-	// Fade out the shadow map past a certain distance.
-	float fade_start = global_settings.shadow_distance;
-	float fade_distance = global_settings.shadow_fade_distance;
+        // The end of the fade-out range.
+        float fade_end = fade_start + fade_distance;
 
-	// The end of the fade-out range.
-	float fade_end = fade_start + fade_distance;
+        float zclamp = clamp(length(view_position.xyz - in_dto.frag_position.xyz), fade_start, fade_end);
+        float fade_factor = (fade_end - zclamp) / (fade_end - fade_start + 0.00001); // Avoid divide by 0
 
-	float zclamp = clamp(length(view_position.xyz - in_dto.frag_position.xyz), fade_start, fade_end);
-	float fade_factor = (fade_end - zclamp) / (fade_end - fade_start + 0.00001); // Avoid divide by 0
-
-	shadow = clamp(shadow + (1.0 - fade_factor), 0.0, 1.0);
-
+        shadow = clamp(shadow + (1.0 - fade_factor), 0.0, 1.0);
+    }
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use base_reflectivity 
     // of 0.04 and if it's a metal, use the albedo color as base_reflectivity (metallic workflow)    
     vec3 base_reflectivity = vec3(0.04); 

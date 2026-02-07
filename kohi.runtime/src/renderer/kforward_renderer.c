@@ -48,6 +48,16 @@ typedef struct shadow_staticmesh_immediate_data {
 	u32 geo_type; // 0=static, 1=animated
 } shadow_staticmesh_immediate_data;
 
+// FIXME: This should be located elsewhere, since this isn't application specific. Perhaps in renderer types?
+typedef struct shadow_hf_terrain_global_ubo {
+	mat4 view_projections[KMATERIAL_MAX_SHADOW_CASCADES];
+} shadow_hf_terrain_global_ubo;
+
+// FIXME: This should be located elsewhere, since this isn't application specific. Perhaps in renderer types?
+typedef struct shadow_hf_terrain_immediate_data {
+	u32 cascade_index;
+} shadow_hf_terrain_immediate_data;
+
 typedef struct world_debug_global_ubo {
 	mat4 projection;
 	mat4 view;
@@ -168,9 +178,14 @@ b8 kforward_renderer_create(ktexture colour_buffer, ktexture depth_stencil_buffe
 		// Load heightmap terrain shadowmap shader.
 		out_renderer->shadow_pass.hmt_shader = kshader_system_get(kname_create(SHADER_NAME_RUNTIME_SHADOW_TERRAIN), kname_create(PACKAGE_NAME_RUNTIME));
 		KASSERT_DEBUG(out_renderer->shadow_pass.hmt_shader != KSHADER_INVALID);
-
 		// Obtain an instance id global UBO.
 		out_renderer->shadow_pass.hmt_set0_instance_id = kshader_acquire_binding_set_instance(out_renderer->shadow_pass.hmt_shader, 0);
+
+		// Load heightfield terrain shadowmap shader.
+		out_renderer->shadow_pass.hft_shader = kshader_system_get(kname_create(SHADER_NAME_RUNTIME_SHADOW_HF_TERRAIN), kname_create(PACKAGE_NAME_RUNTIME));
+		KASSERT_DEBUG(out_renderer->shadow_pass.hft_shader != KSHADER_INVALID);
+		// Obtain an instance id global UBO.
+		out_renderer->shadow_pass.hft_set0_instance_id = kshader_acquire_binding_set_instance(out_renderer->shadow_pass.hft_shader, 0);
 
 		// Create the depth attachment for the directional light shadow.
 		// This should take renderer buffering into account.
@@ -381,7 +396,7 @@ static b8 scene_pass(
 	}
 
 	// HACK: turning off depth prepass for now.
-	do_depth_prepass = false;
+	/* do_depth_prepass = false; */
 
 	// Clear the textures
 	renderer_clear_colour(renderer->renderer_state, colour_handle);
@@ -434,6 +449,8 @@ static b8 scene_pass(
 				}
 			}
 		}
+
+		// TODO: Render HF terrain chunks in depth pre-pass
 
 		// Render only opaque objects in the "standard" forward pass. Just static for now, too.
 		for (u32 m = 0; m < pass_data->opaque_meshes_by_material_count; ++m) {
@@ -571,6 +588,7 @@ static b8 scene_pass(
 			.game_time = settings->game_time,
 			.delta_time = settings->delta_time,
 			.render_mode = settings->render_mode,
+			.use_pcf = settings->use_pcf,
 			.shadow_bias = settings->shadow_bias,
 			.shadow_distance = settings->shadow_distance,
 			.shadow_split_mult = settings->shadow_split_mult,
@@ -900,7 +918,7 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 
 		rect_2di render_area = (rect_2di){0, 0, renderer->shadow_pass.resolution, renderer->shadow_pass.resolution};
 
-		// Set the global UBO data first.
+		/* // Set the global UBO data first.
 		{
 			// FIXME: Not sure this can be done here, may have to do inside loop below (i.e. within the 'render pass').
 			renderer_begin_debug_label("shadow_staticmesh_global", (vec3){1.0f, 0.0f, 0.0f});
@@ -924,12 +942,60 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 			renderer_end_debug_label();
 		}
 
+		// Set the global UBO data first.
+		{
+			// FIXME: Not sure this can be done here, may have to do inside loop below (i.e. within the 'render pass').
+			renderer_begin_debug_label("shadow_hf_terrain_global", (vec3){1.0f, 0.0f, 0.0f});
+			shadow_hf_terrain_global_ubo global_ubo_data = {0};
+			for (u32 i = 0; i < KMATERIAL_MAX_SHADOW_CASCADES; ++i) {
+				global_ubo_data.view_projections[i] = render_data->shadow_data.cascades[i].view_projection;
+			}
+			kshader_set_binding_data(renderer->shadow_pass.hft_shader, 0, renderer->shadow_pass.hft_set0_instance_id, 0, 0, &global_ubo_data, sizeof(shadow_hf_terrain_global_ubo));
+			renderer_end_debug_label();
+		} */
+
 		// One renderpass per cascade - directional light.
 		for (u32 p = 0; p < render_data->shadow_data.cascade_count; ++p) {
 			{
 				char label_text[17] = "shadow_cascade_0";
 				label_text[15] = '0' + p;
 				renderer_begin_debug_label(label_text, (vec3){0.8f - (p * 0.1f), 0.0f, 0.0f});
+			}
+
+			// Set the global UBO data first.
+			{
+				// FIXME: Not sure this can be done here, may have to do inside loop below (i.e. within the 'render pass').
+				renderer_begin_debug_label("shadow_staticmesh_global", (vec3){1.0f, 0.0f, 0.0f});
+				shadow_staticmesh_global_ubo global_ubo_data = {0};
+				for (u32 i = 0; i < KMATERIAL_MAX_SHADOW_CASCADES; ++i) {
+					global_ubo_data.view_projections[i] = render_data->shadow_data.cascades[i].view_projection;
+				}
+				kshader_set_binding_data(renderer->shadow_pass.staticmesh_shader, 0, renderer->shadow_pass.sm_set0_instance_id, 0, 0, &global_ubo_data, sizeof(shadow_staticmesh_global_ubo));
+				renderer_end_debug_label();
+			}
+
+			// Set the global UBO data first.
+			{
+				// FIXME: Not sure this can be done here, may have to do inside loop below (i.e. within the 'render pass').
+				renderer_begin_debug_label("shadow_heightmap_terrain_global", (vec3){1.0f, 0.0f, 0.0f});
+				shadow_staticmesh_global_ubo global_ubo_data = {0};
+				for (u32 i = 0; i < KMATERIAL_MAX_SHADOW_CASCADES; ++i) {
+					global_ubo_data.view_projections[i] = render_data->shadow_data.cascades[i].view_projection;
+				}
+				kshader_set_binding_data(renderer->shadow_pass.hmt_shader, 0, renderer->shadow_pass.hmt_set0_instance_id, 0, 0, &global_ubo_data, sizeof(shadow_staticmesh_global_ubo));
+				renderer_end_debug_label();
+			}
+
+			// Set the global UBO data first.
+			{
+				// FIXME: Not sure this can be done here, may have to do inside loop below (i.e. within the 'render pass').
+				renderer_begin_debug_label("shadow_hf_terrain_global", (vec3){1.0f, 0.0f, 0.0f});
+				shadow_hf_terrain_global_ubo global_ubo_data = {0};
+				for (u32 i = 0; i < KMATERIAL_MAX_SHADOW_CASCADES; ++i) {
+					global_ubo_data.view_projections[i] = render_data->shadow_data.cascades[i].view_projection;
+				}
+				kshader_set_binding_data(renderer->shadow_pass.hft_shader, 0, renderer->shadow_pass.hft_set0_instance_id, 0, 0, &global_ubo_data, sizeof(shadow_hf_terrain_global_ubo));
+				renderer_end_debug_label();
 			}
 
 			// Shadow cascade begin render
@@ -1076,6 +1142,37 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 					// Change back if needed
 					if (winding_inverted) {
 						renderer_winding_set(RENDERER_WINDING_COUNTER_CLOCKWISE);
+					}
+				}
+			}
+
+			// HF Terrain
+			{
+				kshader shader = renderer->shadow_pass.hft_shader;
+				kshader_system_use(shader, VERTEX_LAYOUT_INDEX_STATIC);
+				renderer_cull_mode_set(RENDERER_CULL_MODE_NONE);
+
+				// Apply the global binding set.
+				kshader_apply_binding_set(shader, 0, renderer->shadow_pass.hft_set0_instance_id);
+				for (u32 b = 0; b < render_data->shadow_data.hf_terrain_data.block_count; ++b) {
+					hf_terrain_block_render_data* block_data = &render_data->shadow_data.hf_terrain_data.blocks[b];
+
+					for (u32 c = 0; c < block_data->chunk_count; ++c) {
+						hf_terrain_chunk_render_data* chunk_data = &block_data->chunks[c];
+
+						// Immediate data.
+						shadow_hf_terrain_immediate_data immediate = {.cascade_index = p};
+						kshader_set_immediate_data(shader, &immediate, sizeof(shadow_hf_terrain_immediate_data));
+
+						// Draw it.
+						if (!renderer_renderbuffer_draw(renderer->renderer_state, renderer->standard_vertex_buffer, chunk_data->vertex_buffer_offset, chunk_data->vertex_count, 0, true)) {
+							KERROR("Shadow Renderer HF Terrain: failed to draw vertex buffer.");
+							return false;
+						}
+						if (!renderer_renderbuffer_draw(renderer->renderer_state, renderer->index_buffer, render_data->shadow_data.hf_terrain_data.index_buffer_offset, render_data->shadow_data.hf_terrain_data.index_count, 0, false)) {
+							KERROR("Shadow Renderer HF Terrain: failed to draw index buffer.");
+							return false;
+						}
 					}
 				}
 			}

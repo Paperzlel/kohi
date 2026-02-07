@@ -1,0 +1,63 @@
+version = 1
+depth_test=true
+depth_write=true
+colour_read=false
+colour_write=false
+cull_mode="none"
+
+attachments = {
+	depth = {
+		name = "depth_buffer"
+		format = "D24"
+	}
+	stencil = {
+		name = "stencil_buffer"
+		format = "S8"
+	}
+}
+
+pipelines = [
+	{
+		name = "static geometry"
+		stages = [
+			{
+				type = "vertex"
+				source_asset_name = "Shader.Shadow_HFTerrain_vert"
+				package_name = "Kohi.Runtime"
+			}
+			{
+				type = "fragment"
+				source_asset_name = "Shader.Shadow_HFTerrain_frag"
+				package_name = "Kohi.Runtime"
+			}
+		]
+		attributes = [
+			{
+				name = "in_position"
+				type = "vec4"
+			}
+			{
+				name = "in_normal"
+				type = "vec4"
+			}
+			{
+				name = "in_tangent"
+				type = "vec4"
+			}
+		]
+	}
+]
+
+binding_sets = [
+    {
+        name = "shadow static mesh global binding set"
+        max_instance_count = 1
+        bindings = [
+            {
+                name = "shadow HF Terrain global UBO"
+                type = "UBO"
+                data_size = 256
+            }
+        ]
+    }
+]

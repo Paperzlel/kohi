@@ -58,7 +58,7 @@ typedef u32 kscene_flags;
 typedef void (*PFN_scene_loaded)(struct kscene* scene, void* context);
 
 // Creates the scene and kicks off the loading process.
-KAPI struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callback, void* load_context);
+KAPI struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callback, void* load_context, b8 is_editor);
 KAPI void kscene_destroy(struct kscene* scene);
 
 KAPI void kscene_on_window_resize(struct kscene* scene, const struct kwindow* window);
@@ -86,6 +86,7 @@ KAPI void kscene_get_shadow_properties(struct kscene* scene, kcamera current_cam
 
 KAPI b8 kscene_raycast(struct kscene* scene, const struct ray* r, struct raycast_result* out_result);
 KAPI b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, hf_block* out_block, hf_chunk* out_chunk, vec3* out_pos, vec3* out_normal);
+KAPI hf_terrain* kscene_hf_terrain_get(struct kscene* scene);
 
 KAPI kentity kscene_get_entity_by_name(struct kscene* scene, kname name);
 

@@ -384,7 +384,7 @@ static void audio_emitter_entity_destroy(kscene* scene, audio_emitter_entity* ty
 static void create_debug_data(kscene* scene, vec3 size, vec3 center, kentity entity, kscene_debug_data_type type, colour4 colour, b8 ignore_scale, u32* out_debug_data_index);
 #endif
 
-struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callback, void* load_context) {
+struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callback, void* load_context, b8 is_editor) {
 
 	kscene* scene = KALLOC_TYPE(kscene, MEMORY_TAG_SCENE);
 	scene->state = KSCENE_STATE_UNINITIALIZED;
@@ -445,10 +445,12 @@ struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callbac
 	debug_grid_initialize(&scene->grid);
 	debug_grid_load(&scene->grid);
 
-	// Enable general debug
-	FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_ENABLED_BIT, true);
-	FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_BVH_ENABLED_BIT, false);
-	FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_GRID_ENABLED_BIT, true);
+	// Enable general debug if editor mode
+	if (is_editor) {
+		FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_ENABLED_BIT, true);
+		FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_BVH_ENABLED_BIT, false);
+		FLAG_SET(scene->flags, KSCENE_FLAG_DEBUG_GRID_ENABLED_BIT, true);
+	}
 #endif
 
 	// Enable rendering everything by default.
@@ -944,7 +946,7 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 			f32 p = (c + 1) / (f32)KMATERIAL_MAX_SHADOW_CASCADES;
 			f32 log = min_z * kpow(ratio, p);
 			f32 uniform = min_z + range * p;
-			f32 d = render_data->forward_data.shadow_split_mult * (log - uniform) + uniform;
+			f32 d = scene->shadow_split_mult * (log - uniform) + uniform;
 			splits.elements[c] = (d - near_clip) / clip_range;
 		}
 		// Default values to use in the event there is no directional light.
@@ -1063,6 +1065,12 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 
 				last_split_dist = split_dist;
 			}
+
+			render_data->shadow_data.hf_terrain_data = kscene_get_hf_terrain_render_data(
+				scene,
+				p_frame_data,
+				KNULL, // FIXME: frustum culling disabled for now.
+				KSCENE_RENDER_DATA_FLAG_NONE);
 
 			// Gather the geometries to be rendered.
 			// Note that this only needs to happen once, since all geometries visible by the furthest-out cascase
@@ -1744,8 +1752,12 @@ b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, hf_block* out_b
 		}
 	}
 
-	KTRACE("Nothing hit.");
+	/* KTRACE("Nothing hit."); */
 	return false;
+}
+
+hf_terrain* kscene_hf_terrain_get(struct kscene* scene) {
+	return &scene->hf;
 }
 
 kentity kscene_get_entity_by_name(struct kscene* scene, kname name) {

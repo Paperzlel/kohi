@@ -83,6 +83,7 @@ void generate_chunk(hf_terrain* t, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u1
 	// Get the offset into the array in elements.
 	u64 block_offset = (block_z * HF_BLOCK_VERTEX_COUNT * z_dim) + (block_x * HF_BLOCK_VERTEX_COUNT);
 	u64 chunk_offset = block_offset + (chunk_z * HF_CHUNK_VERTEX_COUNT * HF_BLOCK_CHUNK_DIM) + (HF_CHUNK_VERTEX_COUNT * chunk_x);
+	chunk->vertex_offset = chunk_offset;
 	chunk->vertex_buffer_offset = t->base_vertex_buffer_offset + (chunk_offset * sizeof(hf_vertex_3d));
 
 	// Determines the size modification of each quad relative to a world unit.
@@ -166,30 +167,30 @@ void generate_chunk(hf_terrain* t, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u1
 		chunk->albedo_textures[2] = texture_acquire_sync(kname_create("paverPath"));
 		chunk->normal_textures[2] = texture_acquire_sync(kname_create("paverPath_NORM"));
 		chunk->mra_textures[2] = texture_acquire_sync(kname_create("paverPath_MRA"));
-		chunk->albedo_textures[3] = texture_acquire_sync(kname_create("lushGrass"));
-		chunk->normal_textures[3] = texture_acquire_sync(kname_create("lushGrass_NORM"));
-		chunk->mra_textures[3] = texture_acquire_sync(kname_create("lushGrass_MRA"));
-		chunk->albedo_textures[4] = texture_acquire_sync(kname_create("yellowFlowers"));
-		chunk->normal_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_NORM"));
-		chunk->mra_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_MRA"));
+		chunk->albedo_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled"));
+		chunk->normal_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled_norm"));
+		chunk->mra_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled_mra"));
+		chunk->albedo_textures[4] = texture_acquire_sync(kname_create("lushGrass"));
+		chunk->normal_textures[4] = texture_acquire_sync(kname_create("lushGrass_NORM"));
+		chunk->mra_textures[4] = texture_acquire_sync(kname_create("lushGrass_MRA"));
 	}
 	if (chunk_x == 2 && chunk_z == 0) {
 		// new zone material set
 		chunk->albedo_textures[0] = texture_acquire_sync(kname_create("lushGrass_dry"));
 		chunk->normal_textures[0] = texture_acquire_sync(kname_create("lushGrass_dry_NORM"));
 		chunk->mra_textures[0] = texture_acquire_sync(kname_create("lushGrass_dry_MRA"));
-		chunk->albedo_textures[1] = texture_acquire_sync(kname_create("squarePaverPath_Angled"));
-		chunk->normal_textures[1] = texture_acquire_sync(kname_create("squarePaverPath_Angled_NORM"));
-		chunk->mra_textures[1] = texture_acquire_sync(kname_create("squarePaverPath_Angled_MRA"));
+		chunk->albedo_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry"));
+		chunk->normal_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry_NORM"));
+		chunk->mra_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry_MRA"));
 		chunk->albedo_textures[2] = texture_acquire_sync(kname_create("paverPath"));
 		chunk->normal_textures[2] = texture_acquire_sync(kname_create("paverPath_NORM"));
 		chunk->mra_textures[2] = texture_acquire_sync(kname_create("paverPath_MRA"));
-		chunk->albedo_textures[3] = texture_acquire_sync(kname_create("lushGrass"));
-		chunk->normal_textures[3] = texture_acquire_sync(kname_create("lushGrass_NORM"));
-		chunk->mra_textures[3] = texture_acquire_sync(kname_create("lushGrass_MRA"));
-		chunk->albedo_textures[4] = texture_acquire_sync(kname_create("yellowFlowers"));
-		chunk->normal_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_NORM"));
-		chunk->mra_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_MRA"));
+		chunk->albedo_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled"));
+		chunk->normal_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled_norm"));
+		chunk->mra_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled_mra"));
+		chunk->albedo_textures[4] = texture_acquire_sync(kname_create("lushGrass"));
+		chunk->normal_textures[4] = texture_acquire_sync(kname_create("lushGrass_NORM"));
+		chunk->mra_textures[4] = texture_acquire_sync(kname_create("lushGrass_MRA"));
 	}
 }
 
@@ -372,250 +373,42 @@ void hf_terrain_get_render_data(const hf_terrain* t, frame_data* p_frame_data, h
 	}
 }
 
-hf_block* hf_terrain_get_block_relative_to(hf_terrain* t, hf_block* block, hf_terrain_direction direction) {
-	switch (direction) {
-	case HF_TERRAIN_DIRECTION_N:
-		if (block->z >= t->block_count_z - 1) {
-			return KNULL;
-		}
-		return &t->blocks[t->block_count_x * block->z + block->x];
-
-	case HF_TERRAIN_DIRECTION_NE:
-		if (block->z >= t->block_count_z - 1 || block->x == 0) {
-			return KNULL;
-		}
-		return &t->blocks[(t->block_count_x * block->z + block->x) - 1];
-
-	case HF_TERRAIN_DIRECTION_NW:
-		if (block->z >= t->block_count_z - 1 || block->x >= t->block_count_x - 1) {
-			return KNULL;
-		}
-		return &t->blocks[(t->block_count_x * block->z + block->x) + 1];
-
-	case HF_TERRAIN_DIRECTION_E:
-		if (block->x == 0) {
-			return KNULL;
-		}
-		return &t->blocks[block->index - 1];
-
-	case HF_TERRAIN_DIRECTION_S:
-		if (block->z == 0) {
-			return KNULL;
-		}
-		return &t->blocks[t->block_count_x * (block->z - 1) + block->x];
-
-	case HF_TERRAIN_DIRECTION_SE:
-		if (block->z == 0 || block->x == 0) {
-			return KNULL;
-		}
-		return &t->blocks[(t->block_count_x * (block->z - 1) + block->x) - 1];
-
-	case HF_TERRAIN_DIRECTION_SW:
-		if (block->z == 0 || block->x >= t->block_count_x - 1) {
-			return KNULL;
-		}
-		return &t->blocks[(t->block_count_x * (block->z - 1) + block->x) + 1];
-
-	case HF_TERRAIN_DIRECTION_W:
-		if (block->x >= t->block_count_x - 1) {
-			return KNULL;
-		}
-		return &t->blocks[block->index + 1];
+const hf_block* hf_terrain_get_block_at(const hf_terrain* t, u8 x, u8 z) {
+	if (!t || x >= t->block_count_x || z >= t->block_count_z) {
+		return KNULL;
 	}
-
-	return KNULL;
+	return &t->blocks[(z * t->block_count_z) + x];
 }
 
-hf_chunk* hf_terrain_block_get_chunk_at(hf_block* block, u8 x, u8 z) {
+const hf_chunk* hf_terrain_block_get_chunk_at(const hf_block* block, u8 x, u8 z) {
+	if (!block) {
+		return KNULL;
+	}
 	return &block->chunks[(z * HF_BLOCK_CHUNK_DIM) + x];
 }
 
-hf_chunk* hf_terrain_get_chunk_relative_to(hf_terrain* t, hf_block* block, hf_chunk* chunk, hf_terrain_direction direction) {
-
-	switch (direction) {
-	case HF_TERRAIN_DIRECTION_N:
-		if (chunk->z >= HF_BLOCK_CHUNK_DIM - 1) {
-			// Try getting from the next block.
-			hf_block* next_block = hf_terrain_get_block_relative_to(t, block, direction);
-			if (next_block) {
-				return hf_terrain_block_get_chunk_at(next_block, chunk->x, 0);
-			}
-			return KNULL;
-		}
-		return &block->chunks[HF_BLOCK_CHUNK_DIM * chunk->z + chunk->x];
-
-	case HF_TERRAIN_DIRECTION_NE: {
-		b8 n_needed = false;
-		b8 e_needed = false;
-		if (chunk->z >= HF_BLOCK_CHUNK_DIM - 1) {
-			n_needed = true;
-		}
-		if (chunk->x == 0) {
-			e_needed = true;
-		}
-		if (!n_needed && !e_needed) {
-			return &block->chunks[(HF_BLOCK_CHUNK_DIM * chunk->z + chunk->x) - 1];
-		}
-
-		hf_terrain_direction next_dir;
-		u8 x = 0;
-		u8 z = 0;
-		if (n_needed && e_needed) {
-			next_dir = HF_TERRAIN_DIRECTION_NE;
-			x = HF_BLOCK_CHUNK_DIM - 1;
-			z = 0;
-		} else if (n_needed && !e_needed) {
-			next_dir = HF_TERRAIN_DIRECTION_N;
-			x = chunk->x - 1;
-			z = 0;
-		} else {
-			next_dir = HF_TERRAIN_DIRECTION_E;
-			x = HF_BLOCK_CHUNK_DIM - 1;
-			z = chunk->z + 1;
-		}
-		// Try getting from the next block.
-		hf_block* next_block = hf_terrain_get_block_relative_to(t, block, next_dir);
-		if (next_block) {
-			return hf_terrain_block_get_chunk_at(next_block, x, z);
-		}
-	}
-	case HF_TERRAIN_DIRECTION_NW: {
-		b8 n_needed = false;
-		b8 w_needed = false;
-		if (chunk->z >= HF_BLOCK_CHUNK_DIM - 1) {
-			n_needed = true;
-		}
-		if (chunk->x >= HF_BLOCK_CHUNK_DIM - 1) {
-			w_needed = true;
-		}
-		if (!n_needed && !w_needed) {
-			return &block->chunks[(HF_BLOCK_CHUNK_DIM * chunk->z + chunk->x) + 1];
-		}
-
-		hf_terrain_direction next_dir;
-		u8 x = 0;
-		u8 z = 0;
-		if (n_needed && w_needed) {
-			next_dir = HF_TERRAIN_DIRECTION_NW;
-			x = HF_BLOCK_CHUNK_DIM - 1;
-			z = 0;
-		} else if (n_needed && !w_needed) {
-			next_dir = HF_TERRAIN_DIRECTION_N;
-			x = chunk->x - 1;
-			z = 0;
-		} else {
-			next_dir = HF_TERRAIN_DIRECTION_W;
-			x = chunk->x + 1;
-			z = chunk->z + 1;
-		}
-		// Try getting from the next block.
-		hf_block* next_block = hf_terrain_get_block_relative_to(t, block, next_dir);
-		if (next_block) {
-			return hf_terrain_block_get_chunk_at(next_block, x, z);
-		}
+i32 hf_terrain_chunk_get_vert_index_at(const hf_chunk* chunk, u8 x, u8 z) {
+	if (!chunk || x >= HF_VERTEX_STRIDE || z >= HF_VERTEX_STRIDE) {
+		return -1;
 	}
 
-	case HF_TERRAIN_DIRECTION_E:
-		if (chunk->x == 0) {
-			// Try getting from the next block.
-			hf_block* next_block = hf_terrain_get_block_relative_to(t, block, direction);
-			if (next_block) {
-				return hf_terrain_block_get_chunk_at(next_block, HF_BLOCK_CHUNK_DIM - 1, chunk->z);
-			}
-			return KNULL;
-		}
-		return &block->chunks[chunk->index - 1];
+	return chunk->vertex_offset + (z * HF_VERTEX_STRIDE) + x;
+}
 
-	case HF_TERRAIN_DIRECTION_S:
-		if (block->z == 0) {
-			// Try getting from the next block.
-			hf_block* next_block = hf_terrain_get_block_relative_to(t, block, direction);
-			if (next_block) {
-				return hf_terrain_block_get_chunk_at(next_block, chunk->x, HF_BLOCK_CHUNK_DIM - 1);
-			}
-			return KNULL;
-		}
-		return &block->chunks[HF_BLOCK_CHUNK_DIM * (chunk->z - 1) + chunk->x];
-
-	case HF_TERRAIN_DIRECTION_SE: {
-		b8 n_needed = false;
-		b8 e_needed = false;
-		if (chunk->z == 0) {
-			n_needed = true;
-		}
-		if (chunk->x == 0) {
-			e_needed = true;
-		}
-		if (!n_needed && !e_needed) {
-			return &block->chunks[(HF_BLOCK_CHUNK_DIM * (chunk->z - 1) + chunk->x) - 1];
-		}
-
-		hf_terrain_direction next_dir;
-		u8 x = 0;
-		u8 z = 0;
-		if (n_needed && e_needed) {
-			next_dir = HF_TERRAIN_DIRECTION_NE;
-			x = HF_BLOCK_CHUNK_DIM - 1;
-			z = HF_BLOCK_CHUNK_DIM - 1;
-		} else if (n_needed && !e_needed) {
-			next_dir = HF_TERRAIN_DIRECTION_N;
-			x = chunk->x - 1;
-			z = HF_BLOCK_CHUNK_DIM - 1;
-		} else {
-			next_dir = HF_TERRAIN_DIRECTION_E;
-			x = HF_BLOCK_CHUNK_DIM - 1;
-			z = chunk->z - 1;
-		}
-		// Try getting from the next block.
-		hf_block* next_block = hf_terrain_get_block_relative_to(t, block, next_dir);
-		if (next_block) {
-			return hf_terrain_block_get_chunk_at(next_block, x, z);
+void hf_terrain_recalculate_vertices(hf_terrain* t) {
+	u16 block_count = t->block_count_z * t->block_count_x;
+	for (u16 b = 0; b < block_count; ++b) {
+		hf_block* block = &t->blocks[b];
+		for (u16 c = 0; c < HF_BLOCK_CHUNK_COUNT; ++c) {
+			u32 chunk_offset = block->chunks[c].vertex_offset;
+			generate_normals(HF_CHUNK_VERTEX_COUNT, t->vertices + chunk_offset, HF_INDEX_COUNT, t->indices);
+			generate_tangents(HF_CHUNK_VERTEX_COUNT, t->vertices + chunk_offset, HF_INDEX_COUNT, t->indices);
 		}
 	}
-	case HF_TERRAIN_DIRECTION_SW: {
-		b8 n_needed = false;
-		b8 w_needed = false;
-		if (chunk->z == 0) {
-			n_needed = true;
-		}
-		if (chunk->x >= HF_BLOCK_CHUNK_DIM - 1) {
-			w_needed = true;
-		}
-		if (!n_needed && !w_needed) {
-			return &block->chunks[(HF_BLOCK_CHUNK_DIM * (chunk->z - 1) + chunk->x) + 1];
-		}
+}
 
-		hf_terrain_direction next_dir;
-		u8 x = 0;
-		u8 z = 0;
-		if (n_needed && w_needed) {
-			next_dir = HF_TERRAIN_DIRECTION_NW;
-			x = HF_BLOCK_CHUNK_DIM - 1;
-			z = HF_BLOCK_CHUNK_DIM - 1;
-		} else if (n_needed && !w_needed) {
-			next_dir = HF_TERRAIN_DIRECTION_N;
-			x = chunk->x - 1;
-			z = HF_BLOCK_CHUNK_DIM - 1;
-		} else {
-			next_dir = HF_TERRAIN_DIRECTION_W;
-			x = chunk->x + 1;
-			z = chunk->z - 1;
-		}
-		// Try getting from the next block.
-		hf_block* next_block = hf_terrain_get_block_relative_to(t, block, next_dir);
-		if (next_block) {
-			return hf_terrain_block_get_chunk_at(next_block, x, z);
-		}
-	}
-	case HF_TERRAIN_DIRECTION_W:
-		if (chunk->x >= HF_BLOCK_CHUNK_DIM - 1) {
-			// Try getting from the next block.
-			hf_block* next_block = hf_terrain_get_block_relative_to(t, block, direction);
-			if (next_block) {
-				return hf_terrain_block_get_chunk_at(next_block, 0, chunk->z);
-			}
-			return KNULL;
-		}
-		return &block->chunks[chunk->index + 1];
-	}
+void hf_terrain_chunk_recalculate_vertices(hf_terrain* t, const hf_chunk* chunk) {
+	u32 chunk_offset = chunk->vertex_offset;
+	generate_normals(HF_CHUNK_VERTEX_COUNT, t->vertices + chunk_offset, HF_INDEX_COUNT, t->indices);
+	generate_tangents(HF_CHUNK_VERTEX_COUNT, t->vertices + chunk_offset, HF_INDEX_COUNT, t->indices);
 }
