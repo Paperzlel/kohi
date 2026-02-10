@@ -65,6 +65,7 @@ NOTE: This project _does not_ work under WSL, nor will it in the forseeable futu
 - Vulkan SDK: `winget install khronosgroup.vulkansdk` OR download from https://vulkan.lunarg.com/
 - Assimp: Go here to get an installer: `https://www.assimp.org/`, then downloads. Yes it takes you to an itch.io page, but it's legit.
   - After the installer runs, reboot, then add the install dir to PATH (probably `C:\Program Files\Assimp`)
+  - Also create a system-level environment variable called ASSIMP with this same path as its value. Work will be done in the future to remove this requirement.
 
 ### Prerequisites for Linux
 
@@ -134,6 +135,13 @@ See the setup videos in the series for Windows or Linux for details. macOS setup
 
 # Building
 
+## Initial build
+The first time you build, it's a good idea to run the 'setup' first. There are things in place to _try_ checking for this,
+but at the moment they don't always work. This needs to be done once (unless there is a major update that specifies it should 
+be done again).
+- All that needs to be done for this is to run `make setup` from the project root.
+
+## General builds
 There are 2 build types available, Debug and Release. Debug includes debug symbols and is optimal for development and exploration, while Release is ideal for performance. There is also a "clean" available to clean out the built files, which is useful when switching between Debug/Release, or when strange linking errors occur because of missing files (i.e. switching branches).
 
 On all platforms, you can simply browse to the root directory of the project in a terminal/command prompt and run either `make all-debug`, `make all-release`, or `make clean`.

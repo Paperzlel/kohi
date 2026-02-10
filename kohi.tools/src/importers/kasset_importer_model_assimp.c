@@ -238,7 +238,7 @@ static b8 materials_from_assimp(const struct aiScene* scene, kname package_name,
 			get_material_texture_data_by_type(package_name, material, aiTextureType_METALNESS, &new_material, &new_material.metallic_map);
 			get_material_texture_data_by_type(package_name, material, aiTextureType_DIFFUSE_ROUGHNESS, &new_material, &new_material.roughness_map);
 			get_material_texture_data_by_type(package_name, material, aiTextureType_AMBIENT_OCCLUSION, &new_material, &new_material.ambient_occlusion_map);
-			get_material_texture_data_by_type(package_name, material, aiTextureType_GLTF_METALLIC_ROUGHNESS, &new_material, &new_material.mra_map);
+			get_material_texture_data_by_type(package_name, material, aiTextureType_METALNESS, &new_material, &new_material.mra_map);
 			get_material_texture_data_by_type(package_name, material, aiTextureType_EMISSIVE, &new_material, &new_material.emissive_map);
 			new_material.emissive_enabled = new_material.emissive_map.resource_name != INVALID_KNAME;
 			break;
