@@ -87,12 +87,11 @@ void generate_chunk(hf_terrain* t, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u1
 	chunk->vertex_buffer_offset = t->base_vertex_buffer_offset + (chunk_offset * sizeof(hf_vertex_3d));
 
 	// Determines the size modification of each quad relative to a world unit.
-	f32 quad_size_mod = 1.0f;
 
-	f32 block_base_z = block_z * HF_BLOCK_QUAD_COUNT * quad_size_mod;
-	f32 block_base_x = block_x * HF_BLOCK_QUAD_COUNT * quad_size_mod;
-	f32 chunk_base_z = block_base_z + (chunk_z * HF_CHUNK_QUAD_COUNT * quad_size_mod);
-	f32 chunk_base_x = block_base_x + (chunk_x * HF_CHUNK_QUAD_COUNT * quad_size_mod);
+	f32 block_base_z = (block_z * HF_BLOCK_QUAD_COUNT * HF_QUAD_SCALE);
+	f32 block_base_x = (block_x * HF_BLOCK_QUAD_COUNT * HF_QUAD_SCALE);
+	f32 chunk_base_z = block_base_z + (chunk_z * HF_CHUNK_QUAD_COUNT * HF_QUAD_SCALE);
+	f32 chunk_base_x = block_base_x + (chunk_x * HF_CHUNK_QUAD_COUNT * HF_QUAD_SCALE);
 
 	extents_3d extents = {
 		.max = vec3_create(-999999.0f, -999999.0f, -999999.0f),
@@ -104,8 +103,8 @@ void generate_chunk(hf_terrain* t, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u1
 
 			hf_vertex_3d* v = &t->vertices[index];
 
-			v->position.x = chunk_base_x + (x * quad_size_mod);
-			v->position.z = chunk_base_z + (z * quad_size_mod);
+			v->position.x = chunk_base_x + (x * HF_QUAD_SCALE);
+			v->position.z = chunk_base_z + (z * HF_QUAD_SCALE);
 			// HACK: Should start at 0, but doing this in the meantime.
 			// TODO: This should also be using the Y from the previous chunk.
 			v->position.y = (ksin(v->position.x / HF_VERTEX_STRIDE) + kcos(v->position.z / HF_VERTEX_STRIDE)) * 2.0f;

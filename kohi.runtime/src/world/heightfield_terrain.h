@@ -51,6 +51,9 @@
 // How many vertices in a single chunk
 #define HF_CHUNK_VERTEX_COUNT (HF_VERTEX_STRIDE * HF_VERTEX_STRIDE)
 
+// The number of world-units taken up per quad of terrain.
+#define HF_QUAD_SCALE 4
+
 // Chunks per block
 #define HF_BLOCK_CHUNK_COUNT 256
 

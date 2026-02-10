@@ -664,7 +664,7 @@ void kui_control_set_is_active(kui_state* state, kui_control self, b8 is_active)
 
 b8 kui_control_get_flag(kui_state* state, kui_control self, kui_control_flag_bits flag) {
 	kui_base_control* base = get_base(state, self);
-	return FLAG_GET(base->flags, flag);
+	return FLAG_GET(base->flags, (u32)flag);
 }
 void kui_control_set_flag(kui_state* state, kui_control self, kui_control_flag_bits flag, b8 enabled) {
 	kui_base_control* base = get_base(state, self);

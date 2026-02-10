@@ -1740,8 +1740,8 @@ static void hf_terrain_paint(editor_state* state, vec3 pos, vec3 normal, const h
 	f32 u = local_x / HF_BLOCK_SIZE_WORLD;
 	f32 v = local_z / HF_BLOCK_SIZE_WORLD;
 
-	u *= 4;
-	v *= 4;
+	/* u *= 4 * HF_QUAD_SCALE;
+	v *= 4 * HF_QUAD_SCALE; */
 
 	if (u >= HF_TERRAIN_SPLATMAP_RESOLUTION || v >= HF_TERRAIN_SPLATMAP_RESOLUTION) {
 		return;
