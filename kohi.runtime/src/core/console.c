@@ -7,6 +7,7 @@
 #include "memory/kmemory.h"
 #include "strings/kstring.h"
 #include "strings/kstring_id.h"
+#include "threads/kmutex.h"
 
 typedef struct console_consumer {
 	PFN_console_consumer_write callback;
@@ -38,6 +39,8 @@ typedef struct console_state {
 
 	// darray of registered console objects.
 	console_object* registered_objects;
+
+	kmutex write_mutex;
 } console_state;
 
 static b8 on_exec(console_state* state, const char* exec_text);
@@ -61,21 +64,28 @@ b8 console_initialize(u64* memory_requirement, struct console_state* state, void
 	// Tell the logger about the console.
 	logger_console_write_hook_set(console_write);
 
+	kmutex_create(&state->write_mutex);
+
 	return true;
 }
 
 void console_shutdown(struct console_state* state) {
 	if (state) {
+		kmutex_lock(&state->write_mutex);
 		u32 command_count = darray_length(state->registered_commands);
 		for (u32 i = 0; i < command_count; ++i) {
 			if (state->registered_commands[i].name) {
 				string_free(state->registered_commands[i].name);
 			}
 		}
+
 		darray_destroy(state->registered_commands);
 		darray_destroy(state->registered_objects);
 
 		darray_destroy(state->consumers);
+		kmutex_unlock(&state->write_mutex);
+
+		kmutex_destroy(&state->write_mutex);
 	}
 
 	state_ptr = 0;
@@ -83,6 +93,7 @@ void console_shutdown(struct console_state* state) {
 
 void console_consumer_register(void* inst, PFN_console_consumer_write callback, u8* out_consumer_id) {
 	if (state_ptr) {
+		kmutex_lock(&state_ptr->write_mutex);
 		*out_consumer_id = INVALID_ID_U8;
 		u8 len = darray_length(state_ptr->consumers);
 		for (u32 i = 0; i < len; ++i) {
@@ -99,14 +110,17 @@ void console_consumer_register(void* inst, PFN_console_consumer_write callback, 
 		console_consumer* consumer = &state_ptr->consumers[*out_consumer_id];
 		consumer->instance = inst;
 		consumer->callback = callback;
+		kmutex_unlock(&state_ptr->write_mutex);
 	}
 }
 
 void console_consumer_unregister(u8 consumer_id) {
 	if (state_ptr) {
+		kmutex_lock(&state_ptr->write_mutex);
 		console_consumer* consumer = &state_ptr->consumers[consumer_id];
 		consumer->instance = KNULL;
 		consumer->callback = KNULL;
+		kmutex_unlock(&state_ptr->write_mutex);
 	}
 }
 
@@ -122,6 +136,7 @@ void console_consumer_update(u8 consumer_id, void* inst, PFN_console_consumer_wr
 
 void console_write(log_level level, const char* message) {
 	if (state_ptr) {
+		kmutex_lock(&state_ptr->write_mutex);
 		// Notify each consumer that a line has been added.
 		u8 len = darray_length(state_ptr->consumers);
 		for (u8 i = 0; i < len; ++i) {
@@ -130,6 +145,7 @@ void console_write(log_level level, const char* message) {
 				consumer->callback(consumer->instance, level, message);
 			}
 		}
+		kmutex_unlock(&state_ptr->write_mutex);
 	}
 }
 

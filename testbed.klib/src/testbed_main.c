@@ -788,7 +788,7 @@ static void close_editor(keys key, keymap_entry_bind_type type, keymap_modifier 
 				KERROR("Failed to load test_scene scene asset.");
 				return;
 			}
-			app->state->current_scene = kscene_create(asset->content, 0, 0, false);
+			app->state->current_scene = kscene_create(kname_create("test_scene"), asset->content, 0, 0, false);
 
 			app->state->mode = TESTBED_APP_MODE_WORLD;
 			KTRACE("Changed to world mode, forget about it cuhh.");
@@ -1151,7 +1151,7 @@ static void trigger_scene_load(console_command_context context) {
 		KERROR("Failed to load test_scene scene asset.");
 		return;
 	}
-	app->state->current_scene = kscene_create(asset->content, 0, 0, false);
+	app->state->current_scene = kscene_create(kname_create("test_scene"), asset->content, 0, 0, false);
 }
 
 static void trigger_scene_unload(console_command_context context) {

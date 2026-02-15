@@ -292,6 +292,12 @@ void asset_system_release_binary(struct asset_system_state* state, kasset_binary
 	}
 }
 
+b8 asset_system_write_binary(struct asset_system_state* state, kname package_name, kname asset_name, u64 size, const void* data) {
+	KASSERT(state && asset_name);
+
+	return vfs_asset_write_binary(state->vfs, asset_name, package_name == INVALID_KNAME ? state->default_package_name : package_name, size, data);
+}
+
 // ////////////////////////////////////
 // TEXT ASSETS
 // ////////////////////////////////////

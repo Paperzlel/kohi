@@ -7,9 +7,15 @@
 #include "logger.h"
 #include "memory/kmemory.h"
 
+static u64 read_binary(void* dest, const void* source, u64 offset, u64 size);
+static u64 read_binary_u32(u32* dest, const void* source, u64 offset);
+static u64 read_binary_u16(u16* dest, const void* source, u64 offset);
+static u64 read_binary_u8(u8* dest, const void* source, u64 offset);
+static u64 read_binary_array(void* dest, const void* source, u64 offset, u64 element_size, u32 count);
 static u64 write_binary(void* block, const void* source, u64 offset, u64 size);
 static u64 write_binary_u32(void* block, u32 value, u64 offset);
 static u64 write_binary_u16(void* block, u16 value, u64 offset);
+static u64 write_binary_u8(void* block, u8 value, u64 offset);
 static u64 write_binary_array(void* block, const void* source, u64 offset, u64 element_size, u32 count);
 
 KAPI b8 kasset_hf_terrain_deserialize(u64 size, const void* in_block, kasset_hf_terrain* out_asset) {
@@ -20,33 +26,23 @@ KAPI b8 kasset_hf_terrain_deserialize(u64 size, const void* in_block, kasset_hf_
 
 	u64 offset = 0;
 
-	out_asset->block_count_x = *(u16*)(((u8*)in_block) + offset);
-	offset += sizeof(u16);
+	offset = read_binary_u16(&out_asset->version, in_block, offset);
+	offset = read_binary_u16(&out_asset->block_count_x, in_block, offset);
+	offset = read_binary_u16(&out_asset->block_count_z, in_block, offset);
 
-	out_asset->block_count_z = *(u16*)(((u8*)in_block) + offset);
-	offset += sizeof(u16);
+	u32 block_count = out_asset->block_count_x * out_asset->block_count_z;
+	out_asset->blocks = KALLOC_TYPE_CARRAY(kasset_hf_terrain_block, block_count);
+	offset = read_binary(out_asset->blocks, in_block, offset, sizeof(kasset_hf_terrain_block) * block_count);
 
-	u16 block_count = out_asset->block_count_x * out_asset->block_count_z;
-
-	// blocks
-	out_asset->blocks = (kasset_hf_terrain_block*)(((u8*)in_block) + offset);
-	offset += sizeof(kasset_hf_terrain_block) * block_count;
-
-	// Vertex count
-	out_asset->vertex_count = *(u32*)(((u8*)in_block) + offset);
-	offset += sizeof(u32);
-
-	// Vertices
-	out_asset->vertices = (kasset_hf_terrain_vertex*)(((u8*)in_block) + offset);
-	offset += sizeof(kasset_hf_terrain_vertex) * out_asset->vertex_count;
+	offset = read_binary_u32(&out_asset->vertex_count, in_block, offset);
+	out_asset->vertices = KALLOC_TYPE_CARRAY(kasset_hf_terrain_vertex, out_asset->vertex_count);
+	offset = read_binary(out_asset->vertices, in_block, offset, sizeof(kasset_hf_terrain_vertex) * out_asset->vertex_count);
 
 	// Material count
-	out_asset->material_count = *(u8*)(((u8*)in_block) + offset);
-	offset += sizeof(u8);
-
-	// Materials
-	out_asset->materials = (kasset_hf_terrain_material*)(((u8*)in_block) + offset);
-	offset += sizeof(kasset_hf_terrain_material) * out_asset->material_count;
+	offset = read_binary_u8(&out_asset->material_count, in_block, offset);
+	out_asset->materials = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material, out_asset->material_count);
+	out_asset->material_names = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material_names, out_asset->material_count);
+	offset = read_binary(out_asset->materials, in_block, offset, sizeof(kasset_hf_terrain_material) * out_asset->material_count);
 
 	binary_string_table string_table = binary_string_table_from_block((((u8*)in_block) + offset));
 
@@ -65,7 +61,7 @@ KAPI b8 kasset_hf_terrain_deserialize(u64 size, const void* in_block, kasset_hf_
 	return true;
 }
 
-KAPI void* kasset_hf_terrain_serialize(const kasset_hf_terrain* asset, u32 exporter_type, u8 exporter_version, u64* out_size) {
+KAPI void* kasset_hf_terrain_serialize(const kasset_hf_terrain* asset, u64* out_size) {
 	KASSERT(out_size);
 
 	if (!asset) {
@@ -78,6 +74,7 @@ KAPI void* kasset_hf_terrain_serialize(const kasset_hf_terrain* asset, u32 expor
 
 	u64 total_block_size = 0;
 
+	total_block_size += sizeof(u16);
 	total_block_size += sizeof(u16);
 	total_block_size += sizeof(u16);
 
@@ -113,12 +110,16 @@ KAPI void* kasset_hf_terrain_serialize(const kasset_hf_terrain* asset, u32 expor
 	*out_size = total_block_size;
 
 	u64 offset = 0;
+	offset = write_binary_u16(block, asset->version, offset);
 	offset = write_binary_u16(block, asset->block_count_x, offset);
 	offset = write_binary_u16(block, asset->block_count_z, offset);
+
 	offset = write_binary(block, asset->blocks, offset, sizeof(kasset_hf_terrain_block) * block_count);
+
 	offset = write_binary_u32(block, asset->vertex_count, offset);
 	offset = write_binary(block, asset->vertices, offset, sizeof(kasset_hf_terrain_vertex) * asset->vertex_count);
-	offset = write_binary_u32(block, asset->material_count, offset);
+
+	offset = write_binary_u8(block, asset->material_count, offset);
 	offset = write_binary(block, asset->materials, offset, sizeof(kasset_hf_terrain_material) * asset->material_count);
 
 	// Write out the serialized string table.
@@ -129,6 +130,27 @@ KAPI void* kasset_hf_terrain_serialize(const kasset_hf_terrain* asset, u32 expor
 
 	// Return the serialized block of memory.
 	return block;
+}
+
+static u64 read_binary(void* dest, const void* source, u64 offset, u64 size) {
+	kcopy_memory(dest, (void*)((u64)source + offset), size);
+	return offset + size;
+}
+
+static u64 read_binary_u32(u32* dest, const void* source, u64 offset) {
+	return read_binary(dest, source, offset, sizeof(u32));
+}
+
+static u64 read_binary_u16(u16* dest, const void* source, u64 offset) {
+	return read_binary(dest, source, offset, sizeof(u16));
+}
+
+static u64 read_binary_u8(u8* dest, const void* source, u64 offset) {
+	return read_binary(dest, source, offset, sizeof(u8));
+}
+
+static u64 read_binary_array(void* dest, const void* source, u64 offset, u64 element_size, u32 count) {
+	return read_binary(dest, source, offset, element_size * count);
 }
 
 static u64 write_binary(void* block, const void* source, u64 offset, u64 size) {
@@ -142,6 +164,10 @@ static u64 write_binary_u32(void* block, u32 value, u64 offset) {
 
 static u64 write_binary_u16(void* block, u16 value, u64 offset) {
 	return write_binary(block, &value, offset, sizeof(u16));
+}
+
+static u64 write_binary_u8(void* block, u8 value, u64 offset) {
+	return write_binary(block, &value, offset, sizeof(u8));
 }
 
 static u64 write_binary_array(void* block, const void* source, u64 offset, u64 element_size, u32 count) {

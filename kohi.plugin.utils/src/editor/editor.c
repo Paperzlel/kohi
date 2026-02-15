@@ -123,6 +123,7 @@ static b8 tree_item_clicked(struct kui_state* state, kui_control self, struct ku
 static b8 tree_item_expanded(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 tree_item_collapsed(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 
+static b8 hft_save_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static void hft_paint_brush_diameter_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void hft_paint_brush_strength_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void hft_paint_material_index_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
@@ -565,6 +566,16 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 		KASSERT(kui_system_control_add_child(kui_state, state->hf_terrain_bg_panel, state->hf_terrain_title));
 		kui_control_position_set(kui_state, state->hf_terrain_title, (vec3){10, -5.0f, 0});
 
+		// Terrain save button HACK: This should have its own space alongside creation tools (create button, x/z dimensions, etc.)
+		{
+			state->hf_terrain_save_button = kui_button_control_create_with_text(kui_state, "hf_terrain_save_button", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Save HF Terr.");
+			KASSERT(kui_system_control_add_child(kui_state, state->hf_terrain_bg_panel, state->hf_terrain_save_button));
+			kui_button_control_width_set(kui_state, state->hf_terrain_save_button, 150);
+			kui_control_position_set(kui_state, state->hf_terrain_save_button, (vec3){300, 0, 0});
+			kui_control_set_user_data(kui_state, state->hf_terrain_save_button, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
+			kui_control_set_on_click(kui_state, state->hf_terrain_save_button, hft_save_button_clicked);
+		}
+
 		// Paint sub-mode - active by default
 		{
 
@@ -717,7 +728,7 @@ b8 editor_open(struct editor_state* state, kname scene_name, kname scene_package
 	KINFO("Opening editor scene...");
 
 	// Creates scene and triggers load.
-	state->edit_scene = kscene_create(scene_asset->content, 0, 0, true);
+	state->edit_scene = kscene_create(scene_name, scene_asset->content, 0, 0, true);
 	state->scene_asset_name = scene_name;
 	state->scene_package_name = scene_package_name;
 
@@ -2870,6 +2881,15 @@ static void hf_terrain_erase_checkbox_check_changed(struct kui_state* state, kui
 			kui_textbox_i64_set(state, editor->hft_paint_brush_strength_textbox, x);
 		}
 	}
+}
+
+static b8 hft_save_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
+	editor_state* editor = kui_control_get_user_data(state, self);
+
+	b8 result = kscene_hf_terrain_save(editor->edit_scene);
+	KTRACE("HF Terrain save %s", result ? "success" : "failure");
+
+	return false;
 }
 
 static void hft_paint_brush_diameter_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt) {

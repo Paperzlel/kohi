@@ -525,7 +525,7 @@ typedef struct kasset_hf_terrain_vertex {
 } kasset_hf_terrain_vertex;
 
 typedef struct kasset_hf_terrain_chunk {
-	u8 material_index;
+	u8 material_indices[5];
 } kasset_hf_terrain_chunk;
 
 #define KASSET_HF_TERRAIN_CHUNK_COUNT 256
@@ -555,6 +555,7 @@ typedef struct kasset_hf_terrain_material_names {
 } kasset_hf_terrain_material_names;
 
 typedef struct kasset_hf_terrain {
+	u16 version;
 
 	// Number of blocks along x axis. Must be at least 1.
 	u16 block_count_x;

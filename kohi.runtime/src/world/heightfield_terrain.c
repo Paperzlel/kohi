@@ -1,5 +1,6 @@
 #include "heightfield_terrain.h"
 
+#include "assets/kasset_types.h"
 #include "core/engine.h"
 #include "core/frame_data.h"
 #include "core_render_types.h"
@@ -75,7 +76,7 @@ static void generate_tangents(u32 vertex_count, hf_vertex_3d* vertices, u32 inde
 	}
 }
 
-void generate_chunk(hf_terrain* t, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u16 block_x, u16 block_z, u16 z_dim) {
+void generate_chunk(hf_terrain* t, kasset_hf_terrain_chunk* asset_chunk, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u16 block_x, u16 block_z, u16 z_dim) {
 	chunk->x = chunk_x;
 	chunk->z = chunk_z;
 	chunk->index = (chunk_z * HF_BLOCK_CHUNK_DIM) + chunk_x;
@@ -105,8 +106,7 @@ void generate_chunk(hf_terrain* t, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u1
 
 			v->position.x = chunk_base_x + (x * HF_QUAD_SCALE);
 			v->position.z = chunk_base_z + (z * HF_QUAD_SCALE);
-			// HACK: Should start at 0, but doing this in the meantime.
-			// TODO: This should also be using the Y from the previous chunk.
+
 			v->position.y = (ksin(v->position.x / HF_VERTEX_STRIDE) + kcos(v->position.z / HF_VERTEX_STRIDE)) * 2.0f;
 			// HACK: test
 			if (x >= 3 && x <= 6 && z >= 3 && z <= 6) {
@@ -141,63 +141,40 @@ void generate_chunk(hf_terrain* t, hf_chunk* chunk, u16 chunk_x, u16 chunk_z, u1
 	// Acquire shader resources.
 	chunk->shader_instance_id = kshader_acquire_binding_set_instance(t->hf_terrain_shader, 1);
 
-	// HACK: Hardcoding material textures until HF terrain materials are setup.
-	chunk->albedo_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix"));
-	chunk->normal_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix_NORM"));
-	chunk->mra_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix_MRA"));
-	chunk->albedo_textures[1] = texture_acquire_sync(kname_create("dirtRocks_dark"));
-	chunk->normal_textures[1] = texture_acquire_sync(kname_create("dirtRocks_dark_NORM"));
-	chunk->mra_textures[1] = texture_acquire_sync(kname_create("dirtRocks_dark_MRA"));
-	chunk->albedo_textures[2] = texture_acquire_sync(kname_create("paverPath"));
-	chunk->normal_textures[2] = texture_acquire_sync(kname_create("paverPath_NORM"));
-	chunk->mra_textures[2] = texture_acquire_sync(kname_create("paverPath_MRA"));
-	chunk->albedo_textures[3] = texture_acquire_sync(kname_create("lushGrass"));
-	chunk->normal_textures[3] = texture_acquire_sync(kname_create("lushGrass_NORM"));
-	chunk->mra_textures[3] = texture_acquire_sync(kname_create("lushGrass_MRA"));
-	chunk->albedo_textures[4] = texture_acquire_sync(kname_create("yellowFlowers"));
-	chunk->normal_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_NORM"));
-	chunk->mra_textures[4] = texture_acquire_sync(kname_create("yellowFlowers_MRA"));
+	if (asset_chunk) {
+		for (u8 i = 0; i < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++i) {
+			chunk->material_indices[i] = asset_chunk->material_indices[i];
+		}
+	} else {
 
-	// HACK: Showcasing different materials per chunk.
-	if (chunk_x == 1 && chunk_z == 0) {
-		// transition to new zone material set
-		chunk->albedo_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix"));
-		chunk->normal_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix_NORM"));
-		chunk->mra_textures[0] = texture_acquire_sync(kname_create("dirtRocks_grass_mix_MRA"));
-		chunk->albedo_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry"));
-		chunk->normal_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry_NORM"));
-		chunk->mra_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry_MRA"));
-		chunk->albedo_textures[2] = texture_acquire_sync(kname_create("paverPath"));
-		chunk->normal_textures[2] = texture_acquire_sync(kname_create("paverPath_NORM"));
-		chunk->mra_textures[2] = texture_acquire_sync(kname_create("paverPath_MRA"));
-		chunk->albedo_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled"));
-		chunk->normal_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled_norm"));
-		chunk->mra_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled_mra"));
-		chunk->albedo_textures[4] = texture_acquire_sync(kname_create("lushGrass"));
-		chunk->normal_textures[4] = texture_acquire_sync(kname_create("lushGrass_NORM"));
-		chunk->mra_textures[4] = texture_acquire_sync(kname_create("lushGrass_MRA"));
-	}
-	if (chunk_x == 2 && chunk_z == 0) {
-		// new zone material set
-		chunk->albedo_textures[0] = texture_acquire_sync(kname_create("lushGrass_dry"));
-		chunk->normal_textures[0] = texture_acquire_sync(kname_create("lushGrass_dry_NORM"));
-		chunk->mra_textures[0] = texture_acquire_sync(kname_create("lushGrass_dry_MRA"));
-		chunk->albedo_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry"));
-		chunk->normal_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry_NORM"));
-		chunk->mra_textures[1] = texture_acquire_sync(kname_create("lushGrass_dry_MRA"));
-		chunk->albedo_textures[2] = texture_acquire_sync(kname_create("paverPath"));
-		chunk->normal_textures[2] = texture_acquire_sync(kname_create("paverPath_NORM"));
-		chunk->mra_textures[2] = texture_acquire_sync(kname_create("paverPath_MRA"));
-		chunk->albedo_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled"));
-		chunk->normal_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled_norm"));
-		chunk->mra_textures[3] = texture_acquire_sync(kname_create("squarepaverpath_angled_mra"));
-		chunk->albedo_textures[4] = texture_acquire_sync(kname_create("lushGrass"));
-		chunk->normal_textures[4] = texture_acquire_sync(kname_create("lushGrass_NORM"));
-		chunk->mra_textures[4] = texture_acquire_sync(kname_create("lushGrass_MRA"));
+		// HACK: Hardcoding materials for now
+		chunk->material_indices[0] = 0;
+		chunk->material_indices[1] = 1;
+		chunk->material_indices[2] = 2;
+		chunk->material_indices[3] = 3;
+		chunk->material_indices[4] = 4;
+
+		// HACK: Showcasing different materials per chunk.
+		if (chunk_x == 1 && chunk_z == 0) {
+			// transition to new zone material set
+			chunk->material_indices[0] = 0;
+			chunk->material_indices[1] = 5;
+			chunk->material_indices[2] = 2;
+			chunk->material_indices[3] = 6;
+			chunk->material_indices[4] = 3;
+		}
+		if (chunk_x == 2 && chunk_z == 0) {
+			// new zone material set
+			chunk->material_indices[0] = 5;
+			chunk->material_indices[1] = 5;
+			chunk->material_indices[2] = 2;
+			chunk->material_indices[3] = 6;
+			chunk->material_indices[4] = 3;
+		}
 	}
 }
 
-void generate_block(hf_terrain* t, hf_block* block, u16 block_x, u16 block_z, u16 z_dim) {
+void generate_block(hf_terrain* t, kasset_hf_terrain_block* asset_block, hf_block* block, u16 block_x, u16 block_z, u16 z_dim) {
 
 #if HF_TERRAIN_TRACE
 	static u32 g_block_count = 0;
@@ -216,7 +193,7 @@ void generate_block(hf_terrain* t, hf_block* block, u16 block_x, u16 block_z, u1
 	for (u8 z = 0; z < HF_BLOCK_CHUNK_DIM; ++z) {
 		for (u8 x = 0; x < HF_BLOCK_CHUNK_DIM; ++x) {
 			u32 index = (z * HF_BLOCK_CHUNK_DIM) + x;
-			generate_chunk(t, &block->chunks[index], x, z, block_x, block_z, z_dim);
+			generate_chunk(t, asset_block ? &asset_block->chunks[index] : KNULL, &block->chunks[index], x, z, block_x, block_z, z_dim);
 
 			extents.min = vec3_min(block->chunks[index].aabb.min, extents.min);
 			extents.max = vec3_max(block->chunks[index].aabb.max, extents.max);
@@ -228,9 +205,12 @@ void generate_block(hf_terrain* t, hf_block* block, u16 block_x, u16 block_z, u1
 
 	u64 pixel_array_size = HF_TERRAIN_SPLATMAP_RESOLUTION * HF_TERRAIN_SPLATMAP_RESOLUTION * 4;
 	u8* pixels = KALLOC_TYPE_CARRAY(u8, pixel_array_size);
-	kzero_memory(pixels, sizeof(u8) * pixel_array_size);
-	// TODO: read in pixels from a file...
 
+	if (asset_block) {
+		kcopy_memory(pixels, asset_block->splatmap_pixels, sizeof(u8) * pixel_array_size);
+	} else {
+		kzero_memory(pixels, sizeof(u8) * pixel_array_size);
+	}
 	KDUPLICATE_TYPE_CARRAY(block->splatmap_pixels, pixels, u8, pixel_array_size);
 	block->splatmap = texture_acquire_from_pixel_data(KPIXEL_FORMAT_RGBA8, pixel_array_size, pixels, HF_TERRAIN_SPLATMAP_RESOLUTION, HF_TERRAIN_SPLATMAP_RESOLUTION, name);
 
@@ -293,6 +273,37 @@ hf_terrain hf_terrain_generate(u16 blocks_x, u16 blocks_z) {
 	u64 vertex_buffer_size = sizeof(hf_vertex_3d) * t.vertex_count;
 	KASSERT(renderer_renderbuffer_allocate(renderer_system, vertex_buffer, vertex_buffer_size, &t.base_vertex_buffer_offset));
 
+	// Setup materials.
+	t.material_count = 7;
+	t.materials = KALLOC_TYPE_CARRAY(hf_terrain_material, t.material_count);
+	t.materials[0].albedo_texture = texture_acquire_sync(kname_create("dirtRocks_grass_mix"));
+	t.materials[0].normal_texture = texture_acquire_sync(kname_create("dirtRocks_grass_mix_NORM"));
+	t.materials[0].mra_texture = texture_acquire_sync(kname_create("dirtRocks_grass_mix_MRA"));
+
+	t.materials[1].albedo_texture = texture_acquire_sync(kname_create("dirtRocks_dark"));
+	t.materials[1].normal_texture = texture_acquire_sync(kname_create("dirtRocks_dark_NORM"));
+	t.materials[1].mra_texture = texture_acquire_sync(kname_create("dirtRocks_dark_MRA"));
+
+	t.materials[2].albedo_texture = texture_acquire_sync(kname_create("paverPath"));
+	t.materials[2].normal_texture = texture_acquire_sync(kname_create("paverPath_NORM"));
+	t.materials[2].mra_texture = texture_acquire_sync(kname_create("paverPath_MRA"));
+
+	t.materials[3].albedo_texture = texture_acquire_sync(kname_create("lushGrass"));
+	t.materials[3].normal_texture = texture_acquire_sync(kname_create("lushGrass_NORM"));
+	t.materials[3].mra_texture = texture_acquire_sync(kname_create("lushGrass_MRA"));
+
+	t.materials[4].albedo_texture = texture_acquire_sync(kname_create("yellowFlowers"));
+	t.materials[4].normal_texture = texture_acquire_sync(kname_create("yellowFlowers_NORM"));
+	t.materials[4].mra_texture = texture_acquire_sync(kname_create("yellowFlowers_MRA"));
+
+	t.materials[5].albedo_texture = texture_acquire_sync(kname_create("lushGrass_dry"));
+	t.materials[5].normal_texture = texture_acquire_sync(kname_create("lushGrass_dry_NORM"));
+	t.materials[5].mra_texture = texture_acquire_sync(kname_create("lushGrass_dry_MRA"));
+
+	t.materials[6].albedo_texture = texture_acquire_sync(kname_create("squarepaverpath_angled"));
+	t.materials[6].normal_texture = texture_acquire_sync(kname_create("squarepaverpath_angled_NORM"));
+	t.materials[6].mra_texture = texture_acquire_sync(kname_create("squarepaverpath_angled_MRA"));
+
 	t.blocks = KALLOC_TYPE_CARRAY(hf_block, blocks_z * blocks_x);
 
 	// Generate blocks.
@@ -300,11 +311,104 @@ hf_terrain hf_terrain_generate(u16 blocks_x, u16 blocks_z) {
 		for (u8 x = 0; x < blocks_x; ++x) {
 			u32 index = (z * blocks_z) + x;
 			hf_block* block = &t.blocks[index];
-			generate_block(&t, block, x, z, blocks_z);
+			generate_block(&t, KNULL, block, x, z, blocks_z);
 
 			t.extents.min = vec3_min(block->aabb.min, t.extents.min);
 			t.extents.max = vec3_max(block->aabb.max, t.extents.max);
 		}
+	}
+
+	// Upload vertices
+	KASSERT(renderer_renderbuffer_load_range(renderer_system, vertex_buffer, t.base_vertex_buffer_offset, vertex_buffer_size, t.vertices, false));
+
+	// Upload indices
+	KASSERT(renderer_renderbuffer_load_range(renderer_system, index_buffer, t.index_buffer_offset, index_buffer_size, t.indices, false));
+
+	return t;
+}
+
+hf_terrain hf_terrain_create_from_asset(const kasset_hf_terrain* asset) {
+	KASSERT(asset->block_count_x > 0 && asset->block_count_z > 0);
+
+	hf_terrain t = {0};
+
+	t.block_count_x = asset->block_count_x;
+	t.block_count_z = asset->block_count_z;
+
+	// Ensure the terrain is centered in the world.
+	t.extents.max.z = (t.block_count_z * HF_BLOCK_QUAD_COUNT * HF_QUAD_SCALE) * 0.5f;
+	t.extents.max.x = (t.block_count_x * HF_BLOCK_QUAD_COUNT * HF_QUAD_SCALE) * 0.5f;
+	t.extents.min.z = t.extents.max.z * -1.0f;
+	t.extents.min.x = t.extents.max.x * -1.0f;
+
+	KALLOC_TYPE_CARRAY(hf_block, asset->block_count_x * asset->block_count_z);
+
+	// Each chunk uses the same indices.
+	// Surface indices. Generate 1 set of 6 per tile.
+	for (u32 row = 0, i = 0; row < HF_CHUNK_QUAD_COUNT; row += 1) {
+		for (u32 col = 0; col < HF_CHUNK_QUAD_COUNT; col += 1, i += 6) {
+			u32 next_row = row + 1;
+			u32 next_col = col + 1;
+			u32 v0 = (row * HF_VERTEX_STRIDE) + col;
+			u32 v1 = (row * HF_VERTEX_STRIDE) + next_col;
+			u32 v2 = (next_row * HF_VERTEX_STRIDE) + col;
+			u32 v3 = (next_row * HF_VERTEX_STRIDE) + next_col;
+
+			t.indices[i + 0] = v2;
+			t.indices[i + 1] = v1;
+			t.indices[i + 2] = v0;
+			t.indices[i + 3] = v3;
+			t.indices[i + 4] = v1;
+			t.indices[i + 5] = v2;
+		}
+	}
+
+	// Acquire the shader.
+	t.hf_terrain_shader = kshader_system_get(kname_create(SHADER_NAME_RUNTIME_HF_TERRAIN), kname_create(PACKAGE_NAME_RUNTIME));
+	KASSERT_DEBUG(t.hf_terrain_shader != KSHADER_INVALID);
+
+	// Acquire the vertex/index buffers.
+	struct renderer_system_state* renderer_system = engine_systems_get()->renderer_system;
+	krenderbuffer index_buffer = renderer_renderbuffer_get(renderer_system, kname_create(KRENDERBUFFER_NAME_INDEX_STANDARD));
+	krenderbuffer vertex_buffer = renderer_renderbuffer_get(renderer_system, kname_create(KRENDERBUFFER_NAME_VERTEX_STANDARD));
+
+	// Allocate index buffer space.
+	u64 index_buffer_size = sizeof(u32) * HF_INDEX_COUNT;
+	KASSERT(renderer_renderbuffer_allocate(renderer_system, index_buffer, index_buffer_size, &t.index_buffer_offset));
+
+	// Allocate vertexchunk_base_x buffer space.
+	u32 block_count = (asset->block_count_x * asset->block_count_z);
+	t.vertex_count = (HF_VERTEX_STRIDE * HF_VERTEX_STRIDE) * HF_BLOCK_CHUNK_COUNT * block_count;
+	t.vertices = KALLOC_TYPE_CARRAY(hf_vertex_3d, t.vertex_count);
+	u64 vertex_buffer_size = sizeof(hf_vertex_3d) * t.vertex_count;
+	KASSERT(renderer_renderbuffer_allocate(renderer_system, vertex_buffer, vertex_buffer_size, &t.base_vertex_buffer_offset));
+
+	// Setup materials.
+	t.material_count = asset->material_count;
+	t.materials = KALLOC_TYPE_CARRAY(hf_terrain_material, t.material_count);
+	for (u8 i = 0; i < t.material_count; ++i) {
+		t.materials[i].albedo_texture = texture_acquire_sync(kname_create(asset->material_names[i].albedo_str));
+		t.materials[i].normal_texture = texture_acquire_sync(kname_create(asset->material_names[i].normal_str));
+		t.materials[i].mra_texture = texture_acquire_sync(kname_create(asset->material_names[i].mra_str));
+	}
+
+	t.blocks = KALLOC_TYPE_CARRAY(hf_block, asset->block_count_x * asset->block_count_z);
+
+	// Generate blocks.
+	for (u8 z = 0; z < asset->block_count_z; ++z) {
+		for (u8 x = 0; x < asset->block_count_x; ++x) {
+			u32 index = (z * asset->block_count_z) + x;
+			hf_block* block = &t.blocks[index];
+			generate_block(&t, &asset->blocks[index], block, x, z, asset->block_count_z);
+
+			t.extents.min = vec3_min(block->aabb.min, t.extents.min);
+			t.extents.max = vec3_max(block->aabb.max, t.extents.max);
+		}
+	}
+
+	// Set the heights to the saved y offsets.
+	for (u32 i = 0; i < t.vertex_count; ++i) {
+		t.vertices[i].position.y = asset->vertices[i].y_offset;
 	}
 
 	// Upload vertices
@@ -330,13 +434,16 @@ void hf_terrain_destroy(hf_terrain* t) {
 				hf_chunk* chunk = &block->chunks[c];
 
 				kshader_release_binding_set_instance(t->hf_terrain_shader, 1, chunk->shader_instance_id);
-
-				for (u8 m = 0; m < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++m) {
-					texture_release(chunk->albedo_textures[m]);
-				}
 			}
 		}
 		KFREE_TYPE_CARRAY(t->blocks, hf_block, block_count);
+
+		// Free these from material array in the terrain
+		for (u8 m = 0; m < t->material_count; ++m) {
+			texture_release(t->materials[m].albedo_texture);
+			texture_release(t->materials[m].normal_texture);
+			texture_release(t->materials[m].mra_texture);
+		}
 
 		struct renderer_system_state* renderer_system = engine_systems_get()->renderer_system;
 		krenderbuffer index_buffer = renderer_renderbuffer_get(renderer_system, kname_create(KRENDERBUFFER_NAME_INDEX_STANDARD));
@@ -380,7 +487,9 @@ void hf_terrain_get_render_data(const hf_terrain* t, frame_data* p_frame_data, h
 					crd->vertex_count = HF_CHUNK_VERTEX_COUNT;
 					crd->vertex_buffer_offset = chunk->vertex_buffer_offset;
 					for (u8 a = 0; a < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++a) {
-						crd->albedo_textures[a] = chunk->albedo_textures[a];
+						crd->albedo_textures[a] = t->materials[chunk->material_indices[a]].albedo_texture;
+						crd->normal_textures[a] = t->materials[chunk->material_indices[a]].normal_texture;
+						crd->mra_textures[a] = t->materials[chunk->material_indices[a]].mra_texture;
 					}
 				}
 			}

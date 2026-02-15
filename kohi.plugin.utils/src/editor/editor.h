@@ -158,6 +158,7 @@ typedef struct editor_state {
 	f32 hf_terrain_right_col_x;
 	kui_control hf_terrain_bg_panel;
 	kui_control hf_terrain_title;
+	kui_control hf_terrain_save_button;
 	kui_control hft_mode_paint_checkbox;
 	kui_control hft_mode_elevation_checkbox;
 	kui_control hft_mode_chunk_checkbox;

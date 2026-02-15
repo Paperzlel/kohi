@@ -61,6 +61,7 @@
 
 #define HF_INDEX_COUNT 384
 
+// Max number of materials allowed per chunk
 #define HF_TERRAIN_CHUNK_MAX_MATERIALS 5
 
 #define HF_TERRAIN_SPLATMAP_RESOLUTION 1024
@@ -68,6 +69,7 @@
 #define HF_TERRAIN_MAX_BOUND_POINT_LIGHTS 8
 
 struct frame_data;
+struct kasset_hf_terrain;
 
 // Heightfield Vertex 3D
 typedef struct hf_vertex_3d {
@@ -81,9 +83,7 @@ typedef struct hf_chunk {
 	u64 vertex_buffer_offset;
 	u32 vertex_offset;
 
-	ktexture albedo_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
-	ktexture normal_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
-	ktexture mra_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
+	u8 material_indices[HF_TERRAIN_CHUNK_MAX_MATERIALS];
 
 	u32 shader_instance_id;
 
@@ -116,6 +116,12 @@ typedef struct hf_block {
 
 } hf_block;
 
+typedef struct hf_terrain_material {
+	ktexture albedo_texture;
+	ktexture normal_texture;
+	ktexture mra_texture;
+} hf_terrain_material;
+
 // Represents the entire terrain.
 typedef struct hf_terrain {
 	// Number of blocks along x axis. Must be at least 1.
@@ -138,6 +144,9 @@ typedef struct hf_terrain {
 
 	// Storing a reference to the shader for convenience.
 	kshader hf_terrain_shader;
+
+	u8 material_count;
+	hf_terrain_material* materials;
 } hf_terrain;
 
 typedef struct hf_terrain_chunk_render_data {
@@ -170,6 +179,7 @@ typedef struct hf_terrain_render_data {
 } hf_terrain_render_data;
 
 KAPI hf_terrain hf_terrain_generate(u16 blocks_x, u16 blocks_z);
+KAPI hf_terrain hf_terrain_create_from_asset(const struct kasset_hf_terrain* asset);
 
 KAPI void hf_terrain_destroy(hf_terrain* t);
 

@@ -81,6 +81,8 @@ KAPI kasset_binary* asset_system_request_binary_from_package_sync(struct asset_s
 
 KAPI void asset_system_release_binary(struct asset_system_state* state, kasset_binary* asset);
 
+KAPI b8 asset_system_write_binary(struct asset_system_state* state, kname package_name, kname asset_name, u64 size, const void* data);
+
 // ////////////////////////////////////
 // TEXT ASSETS
 // ////////////////////////////////////

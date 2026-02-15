@@ -2,6 +2,7 @@ Changelog
 - 0.12.0
   - Added Heightfield Terrain (HF Terrain), a non-movable type of terrain designed for quick rendering and interaction.
   - Added editor for Heightfield Terrains.
+  - Fixed a thread safety issue in the console.
 
 - 0.11.0
   - Due to changes in the Vulkan layer, the newest SDK must be installed on macOS.

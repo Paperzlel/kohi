@@ -8,11 +8,9 @@
  *
  * @param asset A constant pointer to the asset to be serialized. Required.
  * @param out_size A pointer to hold the size of the serialized block of memory. Required.
- * @param exporter_type Specifies the type of the exporter for debugging purposes.
- * @param exporter_version Specifies the version of the exporter for debugging purposes.
  * @returns A block of memory containing the serialized asset on success; 0 on failure.
  */
-KAPI void* kasset_hf_terrain_serialize(const kasset_hf_terrain* asset, u32 exporter_type, u8 exporter_version, u64* out_size);
+KAPI void* kasset_hf_terrain_serialize(const kasset_hf_terrain* asset, u64* out_size);
 
 /**
  * @brief Attempts to deserialize the given block of memory into an hf_terrain asset.

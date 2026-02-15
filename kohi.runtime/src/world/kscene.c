@@ -36,6 +36,9 @@
 #include <utils/kcolour.h>
 #include <world/world_types.h>
 
+#include "assets/kasset_types.h"
+#include "serializers/kasset_hf_terrain_serializer.h"
+#include "systems/asset_system.h"
 #include "world/heightfield_terrain.h"
 #include "world/world_utils.h"
 
@@ -341,6 +344,8 @@ typedef struct kscene {
 	// darray of active collision shape states.
 	collision_shape_state* col_shape_states;
 
+	kname scene_asset_name;
+	const char* hf_terrain_asset_name;
 	hf_terrain hf;
 
 #if KOHI_DEBUG
@@ -384,7 +389,7 @@ static void audio_emitter_entity_destroy(kscene* scene, audio_emitter_entity* ty
 static void create_debug_data(kscene* scene, vec3 size, vec3 center, kentity entity, kscene_debug_data_type type, colour4 colour, b8 ignore_scale, u32* out_debug_data_index);
 #endif
 
-struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callback, void* load_context, b8 is_editor) {
+struct kscene* kscene_create(kname scene_asset_name, const char* config, PFN_scene_loaded loaded_callback, void* load_context, b8 is_editor) {
 
 	kscene* scene = KALLOC_TYPE(kscene, MEMORY_TAG_SCENE);
 	scene->state = KSCENE_STATE_UNINITIALIZED;
@@ -392,6 +397,7 @@ struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callbac
 	scene->directional_light = KLIGHT_INVALID;
 	scene->loaded_callback = loaded_callback;
 	scene->load_context = load_context;
+	scene->scene_asset_name = scene_asset_name;
 
 	if (!bvh_create(0, scene, &scene->bvh_tree)) {
 		KERROR("Failed to create BVH");
@@ -502,8 +508,15 @@ struct kscene* kscene_create(const char* config, PFN_scene_loaded loaded_callbac
 		return KNULL;
 	}
 
-	// HACK: Get this from config instead.
-	scene->hf = hf_terrain_generate(2, 2);
+	scene->hf_terrain_asset_name = string_format("%k_terrain", scene->scene_asset_name);
+
+	// FIXME: use async instead
+	kasset_hf_terrain* terrain_asset = asset_system_request_hf_terrain_sync(engine_systems_get()->asset_state, scene->hf_terrain_asset_name);
+	if (!terrain_asset) {
+		scene->hf = hf_terrain_generate(2, 2);
+	} else {
+		scene->hf = hf_terrain_create_from_asset(terrain_asset);
+	}
 
 	return scene;
 }
@@ -2814,9 +2827,9 @@ hf_terrain_render_data kscene_get_hf_terrain_render_data(
 			chunk_rd->shader_instance_id = chunk->shader_instance_id;
 
 			for (u8 m = 0; m < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++m) {
-				chunk_rd->albedo_textures[m] = chunk->albedo_textures[m];
-				chunk_rd->normal_textures[m] = chunk->normal_textures[m];
-				chunk_rd->mra_textures[m] = chunk->mra_textures[m];
+				chunk_rd->albedo_textures[m] = scene->hf.materials[chunk->material_indices[m]].albedo_texture;
+				chunk_rd->normal_textures[m] = scene->hf.materials[chunk->material_indices[m]].normal_texture;
+				chunk_rd->mra_textures[m] = scene->hf.materials[chunk->material_indices[m]].mra_texture;
 			}
 
 			// FIXME: Pick the closest lights that actually interact with this geometry and add them
@@ -3845,6 +3858,61 @@ const char* kscene_serialize(const kscene* scene) {
 	const char* output = kson_tree_to_string(&tree);
 	kson_tree_cleanup(&tree);
 	return output;
+}
+
+b8 kscene_hf_terrain_save(const struct kscene* scene) {
+	if (!scene) {
+		return false;
+	}
+	if (!scene->hf.vertices) {
+		// Nothing to save. Return true, as this isn't always an error?
+		return true;
+	}
+
+	kasset_hf_terrain asset = {
+		.vertex_count = scene->hf.vertex_count,
+		.block_count_x = scene->hf.block_count_x,
+		.block_count_z = scene->hf.block_count_z,
+		.material_count = scene->hf.material_count,
+		.version = 0x0001};
+
+	asset.vertices = KALLOC_TYPE_CARRAY(kasset_hf_terrain_vertex, asset.vertex_count);
+	for (u32 i = 0; i < asset.vertex_count; ++i) {
+		asset.vertices[i].y_offset = scene->hf.vertices[i].position.y;
+	}
+
+	u32 block_count = asset.block_count_x * asset.block_count_z;
+	asset.blocks = KALLOC_TYPE_CARRAY(kasset_hf_terrain_block, block_count);
+	for (u32 i = 0; i < block_count; ++i) {
+		hf_block* block = &scene->hf.blocks[i];
+		kasset_hf_terrain_block* asset_block = &asset.blocks[i];
+
+		asset_block->splatmap_size_x = HF_TERRAIN_SPLATMAP_RESOLUTION;
+		asset_block->splatmap_size_y = HF_TERRAIN_SPLATMAP_RESOLUTION;
+		kcopy_memory(asset_block->splatmap_pixels, block->splatmap_pixels, KASSET_HF_SPLAT_RES * KASSET_HF_SPLAT_RES * 4);
+
+		for (u32 c = 0; c < 256; ++c) {
+			hf_chunk* chunk = &block->chunks[c];
+			kasset_hf_terrain_chunk* asset_chunk = &asset_block->chunks[c];
+
+			for (u8 m = 0; m < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++m) {
+				asset_chunk->material_indices[m] = chunk->material_indices[m];
+			}
+		}
+	}
+
+	asset.material_names = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material_names, asset.material_count);
+	asset.materials = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material, asset.material_count);
+	for (u32 i = 0; i < scene->hf.material_count; ++i) {
+		asset.material_names[i].albedo_str = kname_string_get(texture_name_get(scene->hf.materials[i].albedo_texture));
+		asset.material_names[i].normal_str = kname_string_get(texture_name_get(scene->hf.materials[i].normal_texture));
+		asset.material_names[i].mra_str = kname_string_get(texture_name_get(scene->hf.materials[i].mra_texture));
+	}
+
+	u64 asset_size = 0;
+	void* data = kasset_hf_terrain_serialize(&asset, &asset_size);
+
+	return asset_system_write_binary(engine_systems_get()->asset_state, INVALID_KNAME, kname_create(scene->hf_terrain_asset_name), asset_size, data);
 }
 
 static void kscene_dump_hierarchy_entity_r(const kscene* scene, kentity entity, u32 depth) {
