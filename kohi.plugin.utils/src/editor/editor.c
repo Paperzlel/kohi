@@ -3,11 +3,11 @@
 #include "assets/kasset_types.h"
 #include "audio/audio_frontend.h"
 #include "controls/checkbox_control.h"
-#include "controls/image_box_control.h"
 #include "controls/kui_scrollable.h"
 #include "controls/kui_tree_item.h"
 #include "core/event.h"
 #include "core/keymap.h"
+#include "core_render_types.h"
 #include "core_resource_types.h"
 #include "debug/kassert.h"
 #include "defines.h"
@@ -20,6 +20,7 @@
 #include "memory/kmemory.h"
 #include "plugins/plugin_types.h"
 #include "renderer/renderer_frontend.h"
+#include "runtime_defines.h"
 #include "strings/kname.h"
 #include "strings/kstring.h"
 #include "systems/asset_system.h"
@@ -128,8 +129,12 @@ static void hft_paint_brush_diameter_textbox_on_key(kui_state* state, kui_contro
 static void hft_paint_brush_strength_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void hft_paint_material_index_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 
+static void hft_elevation_diameter_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
+static void hft_elevation_amount_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
+
 static void hf_terrain_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static void hf_terrain_erase_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
+static void hf_terrain_set_height_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 
 b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 	*memory_requirement = sizeof(editor_state);
@@ -163,6 +168,13 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 
 		state->editor_gizmo_pass.set0_instance_id = kshader_acquire_binding_set_instance(state->editor_gizmo_pass.gizmo_shader, 0);
 	}
+
+	state->colour_shader = kshader_system_get(kname_create(SHADER_NAME_RUNTIME_COLOUR_3D), kname_create(PACKAGE_NAME_RUNTIME));
+	KASSERT_DEBUG(state->colour_shader != KSHADER_INVALID);
+
+	// Allocate some space in the vertex buffer for the debug points to be rendered.
+	state->debug_points_vertex_buffer_offset = 0;
+	renderer_renderbuffer_allocate(state->renderer, state->standard_vertex_buffer, sizeof(colour_vertex_3d) * 256, &state->debug_points_vertex_buffer_offset);
 
 	// Editor camera. Use the same view properties of the world camera, but different starting position/rotation.
 	vec3 editor_cam_pos = (vec3){-2.571f, 4.75f, 0.929f};
@@ -645,17 +657,56 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 
 		// Elevation sub-mode
 		{
+			// Reasonable tool defaults
+			state->hft_elevation_amount = 0.01f;
+			state->hft_elevation_diameter = 1.0f;
+			state->hft_elevation_set_height = false;
+
 			state->hft_mode_elevation_checkbox = kui_checkbox_control_create(kui_state, "hft_mode_elevation_checkbox", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Elevation");
 			KASSERT(kui_system_control_add_child(kui_state, state->hf_terrain_bg_panel, state->hft_mode_elevation_checkbox));
 			kui_control_position_set(kui_state, state->hft_mode_elevation_checkbox, (vec3){105, 50, 0});
 			kui_control_set_user_data(kui_state, state->hft_mode_elevation_checkbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
 			kui_checkbox_set_on_checked(kui_state, state->hft_mode_elevation_checkbox, hf_terrain_checkbox_check_changed);
 
+			// Content pane
 			state->hft_mode_elevation_content = kui_base_control_create(kui_state, "hft_mode_elevation_content", KUI_CONTROL_TYPE_BASE);
 			KASSERT(kui_system_control_add_child(kui_state, state->hf_terrain_bg_panel, state->hft_mode_elevation_content));
 			kui_control_position_set(kui_state, state->hft_mode_elevation_content, (vec3){5, 90, 0});
 			kui_control_set_is_active(kui_state, state->hft_mode_elevation_content, false);
 			kui_control_set_is_visible(kui_state, state->hft_mode_elevation_content, false);
+
+			state->hft_elevation_diameter_label = kui_label_control_create(kui_state, "hft_elevation_diameter_label", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Diameter");
+			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_elevation_content, state->hft_elevation_diameter_label));
+			kui_control_position_set(kui_state, state->hft_elevation_diameter_label, (vec3){5, 0, 0});
+
+			state->hft_elevation_amount_label = kui_label_control_create(kui_state, "hft_elevation_strength_label", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Amount");
+			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_elevation_content, state->hft_elevation_amount_label));
+			kui_control_position_set(kui_state, state->hft_elevation_amount_label, (vec3){5, 50, 0});
+
+			// elevation brush diameter textbox.
+			state->hft_elevation_diameter_textbox = kui_textbox_control_create(kui_state, "hft_elevation_diameter_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "", KUI_TEXTBOX_TYPE_INT);
+			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_elevation_content, state->hft_elevation_diameter_textbox));
+			kui_control_position_set(kui_state, state->hft_elevation_diameter_textbox, (vec3){state->hf_terrain_right_col_x, 0, 0});
+			kui_textbox_i64_set(kui_state, state->hft_elevation_diameter_textbox, state->hft_elevation_diameter);
+			KASSERT(kui_textbox_control_width_set(kui_state, state->hft_elevation_diameter_textbox, 120));
+			kui_control_set_user_data(kui_state, state->hft_elevation_diameter_textbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
+			kui_control_set_on_key(kui_state, state->hft_elevation_diameter_textbox, hft_elevation_diameter_textbox_on_key);
+
+			// Amount
+			state->hft_elevation_amount_textbox = kui_textbox_control_create(kui_state, "hft_elevation_strength_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "", KUI_TEXTBOX_TYPE_FLOAT);
+			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_elevation_content, state->hft_elevation_amount_textbox));
+			kui_control_position_set(kui_state, state->hft_elevation_amount_textbox, (vec3){state->hf_terrain_right_col_x, 50, 0});
+			kui_textbox_f32_set(kui_state, state->hft_elevation_amount_textbox, state->hft_elevation_amount);
+			KASSERT(kui_textbox_control_width_set(kui_state, state->hft_elevation_amount_textbox, 120));
+			kui_control_set_user_data(kui_state, state->hft_elevation_amount_textbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
+			kui_control_set_on_key(kui_state, state->hft_elevation_amount_textbox, hft_elevation_amount_textbox_on_key);
+
+			// Set height checkbox.
+			state->hft_elevation_set_height_checkbox = kui_checkbox_control_create(kui_state, "hft_elevation_erase_checkbox", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Set Height");
+			KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_elevation_content, state->hft_elevation_set_height_checkbox));
+			kui_control_position_set(kui_state, state->hft_elevation_set_height_checkbox, (vec3){state->hf_terrain_right_col_x + 130, 50, 0});
+			kui_control_set_user_data(kui_state, state->hft_elevation_set_height_checkbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
+			kui_checkbox_set_on_checked(kui_state, state->hft_elevation_set_height_checkbox, hf_terrain_set_height_checkbox_check_changed);
 		}
 
 		// Chunk sub-mode
@@ -989,7 +1040,7 @@ void editor_update(struct editor_state* state, frame_data* p_frame_data) {
 	}
 }
 
-void editor_frame_prepare(struct editor_state* state, frame_data* p_frame_data, b8 draw_gizmo, keditor_gizmo_pass_render_data* gizmo_pass_render_data) {
+void editor_frame_prepare(struct editor_state* state, frame_data* p_frame_data, kcamera current_camera, b8 draw_gizmo, keditor_gizmo_pass_render_data* gizmo_pass_render_data) {
 	// Setup data required for the editor gizmo pass
 
 	editor_gizmo_render_frame_prepare(&state->gizmo, p_frame_data);
@@ -1039,23 +1090,24 @@ static void set_render_state_defaults(rect_2di vp_rect) {
 	renderer_end_debug_label();
 }
 
-b8 editor_render(struct editor_state* state, frame_data* p_frame_data, ktexture colour_buffer_target, b8 draw_gizmo, keditor_gizmo_pass_render_data* render_data) {
+b8 editor_render(struct editor_state* state, frame_data* p_frame_data, kcamera current_camera, ktexture colour_buffer_target, b8 draw_gizmo, keditor_gizmo_pass_render_data* render_data) {
+
+	rect_2di vp_rect = {0};
+	if (!texture_dimensions_get(colour_buffer_target, (u32*)&vp_rect.width, (u32*)&vp_rect.height)) {
+		return false;
+	}
+
+	renderer_begin_debug_label("Editor", (vec3){0.6f, 1.0f, 0.6});
+
+	// Editor begin render
+	renderer_begin_rendering(state->renderer, p_frame_data, vp_rect, 1, &colour_buffer_target, INVALID_KTEXTURE, 0);
+	set_render_state_defaults(vp_rect);
 
 #if KOHI_DEBUG
 	// NOTE: Editor gizmo only included in non-release builds
 	if (render_data->do_pass) {
-
 		if (render_data->visible) {
-
-			renderer_begin_debug_label("editor gizmo", (vec3){0.5f, 1.0f, 0.5});
-
-			rect_2di vp_rect = {0};
-			if (!texture_dimensions_get(colour_buffer_target, (u32*)&vp_rect.width, (u32*)&vp_rect.height)) {
-				return false;
-			}
-			// Editor gizmo begin render
-			renderer_begin_rendering(state->renderer, p_frame_data, vp_rect, 1, &colour_buffer_target, INVALID_KTEXTURE, 0);
-			set_render_state_defaults(vp_rect);
+			renderer_begin_debug_label("Editor gizmo", (vec3){0.5f, 1.0f, 0.5});
 
 			// Disable depth test/write so the gizmo is always on top.
 			renderer_set_depth_test_enabled(false);
@@ -1091,12 +1143,58 @@ b8 editor_render(struct editor_state* state, frame_data* p_frame_data, ktexture 
 				}
 			}
 
-			// Editor gizmo end render
-			renderer_end_rendering(state->renderer, p_frame_data);
-			renderer_end_debug_label();
+			renderer_end_debug_label(); // gizmo label
 		}
 	}
 #endif
+
+	// Debug points render, if applicable
+	if (state->debug_point_count) {
+		renderer_begin_debug_label("Editor debug points", (vec3){0.4f, 1.0f, 0.4});
+
+		kshader_system_use_with_topology(state->colour_shader, PRIMITIVE_TOPOLOGY_TYPE_POINT_LIST_BIT, 0);
+		renderer_cull_mode_set(RENDERER_CULL_MODE_NONE);
+
+		// Global UBO data
+		colour_3d_global_ubo global_ubo_data = {
+			.view = kcamera_get_view(current_camera),
+			.projection = kcamera_get_projection(current_camera)};
+		// NOTE: This shader only ever has one instance of set 0.
+		u32 colour_set0_instance_id = 0;
+		kshader_set_binding_data(state->colour_shader, 0, colour_set0_instance_id, 0, 0, &global_ubo_data, sizeof(colour_3d_global_ubo));
+		kshader_apply_binding_set(state->colour_shader, 0, colour_set0_instance_id);
+
+		mat4 model = mat4_identity();
+
+		colour_3d_immediate_data immediate_data = {.model = model};
+		kshader_set_immediate_data(state->colour_shader, &immediate_data, sizeof(colour_3d_immediate_data));
+
+		// NOTE: May need to do this earlier, like in frame prepare
+		renderer_renderbuffer_load_range(
+			state->renderer,
+			state->standard_vertex_buffer,
+			state->debug_points_vertex_buffer_offset,
+			sizeof(colour_vertex_3d) * state->debug_point_count,
+			state->debug_points,
+			false);
+
+		if (!renderer_renderbuffer_draw(
+				state->renderer,
+				state->standard_vertex_buffer,
+				state->debug_points_vertex_buffer_offset,
+				state->debug_point_count,
+				0,
+				false)) {
+			KERROR("renderer_renderbuffer_draw failed to draw vertex buffer for debug points data");
+			return false;
+		}
+		renderer_end_debug_label(); // debug points label
+	}
+
+	// Editor end render
+	renderer_end_rendering(state->renderer, p_frame_data);
+
+	renderer_end_debug_label(); // editor label
 	return true;
 }
 
@@ -1709,6 +1807,9 @@ static b8 editor_on_mouse_move(u16 code, void* sender, void* listener_inst, even
 			}
 		}
 	} else if (state->mode == EDITOR_MODE_HF_TERRAIN) {
+		state->debug_point_count = 0;
+		hf_terrain* terrain = kscene_hf_terrain_get(state->edit_scene);
+
 		i16 x = context.data.i16[0];
 		i16 y = context.data.i16[1];
 
@@ -1723,15 +1824,25 @@ static b8 editor_on_mouse_move(u16 code, void* sender, void* listener_inst, even
 		hf_chunk chunk;
 		vec3 pos;
 		vec3 normal;
-		if (kscene_hf_terrain_raycast(state->edit_scene, &r, &block, &chunk, &pos, &normal)) {
+		if (kscene_hf_terrain_raycast(state->edit_scene, &r, true, &block, &chunk, &pos, &normal)) {
 			// TODO: move some sort of indicator over terrain to show what will be interacted with on mouse down/drag.
 
 			// Vary action based on selected hf terrain sub-editor mode (i.e. paint vs elevation change).
 			switch (state->hft_edit_mode) {
 			case HF_TERRAIN_EDIT_MODE_PAINT:
 				break;
-			case HF_TERRAIN_EDIT_MODE_ELEVATION:
-				break;
+			case HF_TERRAIN_EDIT_MODE_ELEVATION: {
+				// Operate on the closest vertex.
+				i64 index = -1;
+				u32 tx = 0;
+				u32 tz = 0;
+				hf_vertex_3d* v = hf_terrain_chunk_get_closest_vertex(terrain, &block, &chunk, pos, &tx, &tz, &index);
+
+				// HACK: Just the first one for now, add to this once there diameter is working for this.
+				state->debug_point_count = 1;
+				state->debug_points[0].position = v->position;
+				state->debug_points[0].colour = vec4_create(1.0f, 0.0f, 0.0f, 1.0f);
+			} break;
 			case HF_TERRAIN_EDIT_MODE_CHUNK:
 				break;
 			case HF_TERRAIN_EDIT_MODE_REMOVE:
@@ -1751,8 +1862,8 @@ static void hf_terrain_paint(editor_state* state, vec3 pos, vec3 normal, const h
 	f32 u = local_x / HF_BLOCK_SIZE_WORLD;
 	f32 v = local_z / HF_BLOCK_SIZE_WORLD;
 
-	/* u *= 4 * HF_QUAD_SCALE;
-	v *= 4 * HF_QUAD_SCALE; */
+	u *= HF_QUAD_SCALE;
+	v *= HF_QUAD_SCALE;
 
 	if (u >= HF_TERRAIN_SPLATMAP_RESOLUTION || v >= HF_TERRAIN_SPLATMAP_RESOLUTION) {
 		return;
@@ -1793,7 +1904,6 @@ static void hf_terrain_paint(editor_state* state, vec3 pos, vec3 normal, const h
 			vec2 pos = vec2_create(min_x + x, min_z + z);
 			f32 distance = vec2_distance(pos, brush_center);
 			f32 weight = kfalloff_smooth(distance / radius_texels);
-			// }
 			u32 new_colour_base = ((z * width + x) * 4);
 			u32 cur_colour_base = (((min_z + z) * HF_TERRAIN_SPLATMAP_RESOLUTION + (min_x + x)) * 4);
 
@@ -1850,26 +1960,15 @@ static void hf_terrain_paint(editor_state* state, vec3 pos, vec3 normal, const h
 	KFREE_TYPE_CARRAY(new_colour, u8, total_px * 4);
 }
 
-static void hf_terrain_adjust_vertex_at(hf_terrain* terrain, u32 index) {
-
-	terrain->vertices[index].position.y += 0.01f;
-
-	/* struct renderer_system_state* renderer_state = engine_systems_get()->renderer_system;
-	krenderbuffer vertex_buffer = renderer_renderbuffer_get(renderer_state, kname_create(KRENDERBUFFER_NAME_VERTEX_STANDARD));
-	// Load the data.
-	u32 size = sizeof(hf_vertex_3d);
-	if (!renderer_renderbuffer_load_range(
-			renderer_state,
-			vertex_buffer,
-			terrain->base_vertex_buffer_offset + (index * sizeof(hf_vertex_3d)),
-			size,
-			&terrain->vertices[index], false)) {
-
-		KERROR("vulkan_renderer_geometry_vertex_update failed to upload to the vertex buffer!");
-	} */
+static void hf_terrain_adjust_vertex_at(hf_terrain* terrain, u32 index, f32 amount, b8 set_height) {
+	if (set_height) {
+		terrain->vertices[index].position.y = amount;
+	} else {
+		terrain->vertices[index].position.y += amount;
+	}
 }
 
-static const hf_chunk* hf_terrain_get_next_vertex_index(const hf_terrain* terrain, const hf_block* block, const hf_chunk* chunk, u32 x, u32 z, i8 rel_x, i8 rel_z, i64* out_index) {
+static hf_chunk* hf_terrain_get_next_vertex_index(const hf_terrain* terrain, const hf_block* block, const hf_chunk* chunk, u32 x, u32 z, i8 rel_x, i8 rel_z, i64* out_index) {
 	i16 block_x = block->x;
 	i16 block_z = block->z;
 	i16 chunk_x = chunk->x;
@@ -1936,14 +2035,14 @@ static const hf_chunk* hf_terrain_get_next_vertex_index(const hf_terrain* terrai
 		}
 	}
 
-	const hf_block* new_block = hf_terrain_get_block_at(terrain, block_x, block_z);
-	const hf_chunk* new_chunk = hf_terrain_block_get_chunk_at(new_block, chunk_x, chunk_z);
+	hf_block* new_block = hf_terrain_get_block_at(terrain, block_x, block_z);
+	hf_chunk* new_chunk = hf_terrain_block_get_chunk_at(new_block, chunk_x, chunk_z);
 
 	*out_index = hf_terrain_chunk_get_vert_index_at(new_chunk, next_x, next_z);
 	return new_chunk;
 }
 
-static void hf_terrain_recalc_and_update_verts(hf_terrain* terrain, const hf_chunk** p_chunks, u8 count) {
+static void hf_terrain_recalc_and_update_verts(hf_terrain* terrain, hf_chunk** p_chunks, u8 count) {
 
 	/* hf_terrain_recalculate_vertices(terrain); */
 
@@ -1965,39 +2064,26 @@ static void hf_terrain_recalc_and_update_verts(hf_terrain* terrain, const hf_chu
 	}
 }
 
-static void hf_terrain_do_elevation(editor_state* state, vec3 pos, vec3 normal, const hf_block* block, const hf_chunk* chunk) {
+static void hf_terrain_do_elevation(
+	editor_state* state,
+	vec3 pos,
+	vec3 normal,
+	hf_block* block,
+	hf_chunk* chunk,
+	i64 index,
+	u32 x,
+	u32 z,
+	hf_vertex_3d* closest_vertex) {
 
 	hf_terrain* terrain = kscene_hf_terrain_get(state->edit_scene);
 
 	KINFO("%s - pos=%V3.3", __FUNCTION__, &pos);
 
-	// Get closest vertex.
-	// FIXME: optimize this.
-	f32 shortest_dist = 9999990.0f;
-	i64 index = -1;
-	const hf_chunk* new_chunk;
-	/* pos = vec3_add(pos, chunk->aabb.min); */
-	/* hf_vertex_3d vert = {0}; */
-
-	u32 z = 0;
-	u32 x = 0;
-	for (u32 i = 0; i < HF_CHUNK_VERTEX_COUNT; ++i) {
-		hf_vertex_3d v = terrain->vertices[chunk->vertex_offset + i];
-		f32 dist = vec3_distance_squared(vec3_from_vec4(v.position), pos);
-		if (dist < shortest_dist) {
-			shortest_dist = dist;
-			index = (block->index * HF_BLOCK_VERTEX_COUNT) + (chunk->index * HF_CHUNK_VERTEX_COUNT) + i;
-			/* vert = v; */
-			z = i / HF_VERTEX_STRIDE;
-			x = i % HF_VERTEX_STRIDE;
-		}
-	}
-
-	KTRACE("X/Z, %u/%u", x, z);
+	hf_chunk* new_chunk;
 
 	u8 chunk_update_count = 0;
-	const hf_chunk* update_list[4];
-	hf_terrain_adjust_vertex_at(terrain, index);
+	hf_chunk* update_list[4];
+	hf_terrain_adjust_vertex_at(terrain, index, state->hft_elevation_amount, state->hft_elevation_set_height);
 	update_list[chunk_update_count] = chunk;
 	chunk_update_count++;
 
@@ -2011,7 +2097,7 @@ static void hf_terrain_do_elevation(editor_state* state, vec3 pos, vec3 normal, 
 		}
 
 		if (index >= 0) {
-			hf_terrain_adjust_vertex_at(terrain, index);
+			hf_terrain_adjust_vertex_at(terrain, index, state->hft_elevation_amount, state->hft_elevation_set_height);
 			if (new_chunk != chunk) {
 				update_list[chunk_update_count] = new_chunk;
 				chunk_update_count++;
@@ -2029,7 +2115,7 @@ static void hf_terrain_do_elevation(editor_state* state, vec3 pos, vec3 normal, 
 		}
 
 		if (index >= 0) {
-			hf_terrain_adjust_vertex_at(terrain, index);
+			hf_terrain_adjust_vertex_at(terrain, index, state->hft_elevation_amount, state->hft_elevation_set_height);
 			if (new_chunk != chunk) {
 				update_list[chunk_update_count] = new_chunk;
 				chunk_update_count++;
@@ -2052,7 +2138,7 @@ static void hf_terrain_do_elevation(editor_state* state, vec3 pos, vec3 normal, 
 		}
 
 		if (index >= 0) {
-			hf_terrain_adjust_vertex_at(terrain, index);
+			hf_terrain_adjust_vertex_at(terrain, index, state->hft_elevation_amount, state->hft_elevation_set_height);
 			if (new_chunk != chunk) {
 				update_list[chunk_update_count] = new_chunk;
 				chunk_update_count++;
@@ -2061,6 +2147,14 @@ static void hf_terrain_do_elevation(editor_state* state, vec3 pos, vec3 normal, 
 	}
 
 	hf_terrain_recalc_and_update_verts(terrain, update_list, chunk_update_count);
+
+	// FIXME: Should only do this on blocks containing updates.
+	u32 block_count = terrain->block_count_x * terrain->block_count_z;
+	for (u32 i = 0; i < block_count; ++i) {
+		for (u32 c = 0; c < HF_BLOCK_CHUNK_COUNT; ++c) {
+			terrain->blocks[i].aabb = extents_combine(terrain->blocks[i].aabb, terrain->blocks[i].chunks[c].aabb);
+		}
+	}
 }
 
 static b8 editor_on_drag(u16 code, void* sender, void* listener_inst, event_context context) {
@@ -2142,9 +2236,8 @@ static b8 editor_on_drag(u16 code, void* sender, void* listener_inst, event_cont
 				string_free(zt);
 			}
 		} else if (state->mode == EDITOR_MODE_HF_TERRAIN) {
-			// TODO: allow painting, move up/down while dragging
+			hf_terrain* terrain = kscene_hf_terrain_get(state->edit_scene);
 
-			// TODO: move some sort of indicator over terrain to show what will be interacted with on mouse down/drag.
 			i16 x = context.data.i16[0];
 			i16 y = context.data.i16[1];
 
@@ -2159,16 +2252,27 @@ static b8 editor_on_drag(u16 code, void* sender, void* listener_inst, event_cont
 			hf_chunk chunk;
 			vec3 pos;
 			vec3 normal;
-			if (kscene_hf_terrain_raycast(state->edit_scene, &r, &block, &chunk, &pos, &normal)) {
+			if (kscene_hf_terrain_raycast(state->edit_scene, &r, true, &block, &chunk, &pos, &normal)) {
 
 				// Vary action based on selected hf terrain sub-editor mode (i.e. paint vs elevation change).
 				switch (state->hft_edit_mode) {
 				case HF_TERRAIN_EDIT_MODE_PAINT:
 					hf_terrain_paint(state, pos, normal, &block, &chunk);
 					break;
-				case HF_TERRAIN_EDIT_MODE_ELEVATION:
-					hf_terrain_do_elevation(state, pos, normal, &block, &chunk);
-					break;
+				case HF_TERRAIN_EDIT_MODE_ELEVATION: {
+
+					// Operate on the closest vertex.
+					i64 index = -1;
+					u32 tx = 0;
+					u32 tz = 0;
+					hf_vertex_3d* v = hf_terrain_chunk_get_closest_vertex(terrain, &block, &chunk, pos, &tx, &tz, &index);
+
+					hf_terrain_do_elevation(state, pos, normal, &block, &chunk, index, tx, tz, v);
+					// HACK: Just the first one for now, add to this once there diameter is working for this.
+					state->debug_point_count = 1;
+					state->debug_points[0].position = v->position;
+					state->debug_points[0].colour = vec4_create(1.0f, 0.0f, 0.0f, 1.0f);
+				} break;
 				case HF_TERRAIN_EDIT_MODE_CHUNK:
 					break;
 				case HF_TERRAIN_EDIT_MODE_REMOVE:
@@ -2820,6 +2924,51 @@ static b8 tree_item_collapsed(struct kui_state* state, kui_control self, struct 
 	return true;
 }
 
+static void hft_elevation_diameter_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt) {
+	if (evt.type == KUI_KEYBOARD_EVENT_TYPE_PRESS) {
+		u16 key_code = evt.key;
+
+		editor_state* editor = kui_control_get_user_data(state, self);
+
+		if (key_code == KEY_ENTER || key_code == KEY_TAB) {
+			const char* entry_control_text = kui_textbox_text_get(state, self);
+			u32 len = string_length(entry_control_text);
+			if (len > 0) {
+				const char* val = kui_textbox_text_get(state, self);
+				i64 x;
+				if (string_to_i64(val, &x)) {
+					editor->hft_elevation_diameter = KCLAMP((u32)x, 1, 64);
+				}
+			}
+		}
+		if (key_code == KEY_TAB) {
+			kui_system_focus_control(state, editor->hft_elevation_amount_textbox);
+		}
+	}
+}
+static void hft_elevation_amount_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt) {
+	if (evt.type == KUI_KEYBOARD_EVENT_TYPE_PRESS) {
+		u16 key_code = evt.key;
+
+		editor_state* editor = kui_control_get_user_data(state, self);
+
+		if (key_code == KEY_ENTER || key_code == KEY_TAB) {
+			const char* entry_control_text = kui_textbox_text_get(state, self);
+			u32 len = string_length(entry_control_text);
+			if (len > 0) {
+				const char* val = kui_textbox_text_get(state, self);
+				f32 x;
+				if (string_to_f32(val, &x)) {
+					editor->hft_elevation_amount = (f32)KCLAMP((f32)x, -127, 127);
+				}
+			}
+		}
+		if (key_code == KEY_TAB) {
+			kui_system_focus_control(state, editor->hft_elevation_diameter_textbox);
+		}
+	}
+}
+
 static void hf_terrain_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event) {
 	kui_base_control* base = kui_system_get_base(state, self);
 	editor_state* edit_state = base->user_data;
@@ -2881,6 +3030,12 @@ static void hf_terrain_erase_checkbox_check_changed(struct kui_state* state, kui
 			kui_textbox_i64_set(state, editor->hft_paint_brush_strength_textbox, x);
 		}
 	}
+}
+
+static void hf_terrain_set_height_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event) {
+	editor_state* editor = kui_control_get_user_data(state, self);
+
+	editor->hft_elevation_set_height = event.checked;
 }
 
 static b8 hft_save_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {

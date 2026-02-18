@@ -52,7 +52,7 @@
 #define HF_CHUNK_VERTEX_COUNT (HF_VERTEX_STRIDE * HF_VERTEX_STRIDE)
 
 // The number of world-units taken up per quad of terrain.
-#define HF_QUAD_SCALE 4
+#define HF_QUAD_SCALE 2
 
 // Chunks per block
 #define HF_BLOCK_CHUNK_COUNT 256
@@ -63,6 +63,8 @@
 
 // Max number of materials allowed per chunk
 #define HF_TERRAIN_CHUNK_MAX_MATERIALS 5
+// Max number of materials across the whole terrain.
+#define HF_TERRAIN_MAX_MATERIALS 16
 
 #define HF_TERRAIN_SPLATMAP_RESOLUTION 1024
 
@@ -85,9 +87,10 @@ typedef struct hf_chunk {
 
 	u8 material_indices[HF_TERRAIN_CHUNK_MAX_MATERIALS];
 
-	u32 shader_instance_id;
-
 	extents_3d aabb;
+	// Separate AABB with greater extents on Y axis to prevent
+	// actions from getting clipped.
+	extents_3d editor_aabb;
 
 	// array index.
 	u16 index;
@@ -103,6 +106,9 @@ typedef struct hf_block {
 	hf_chunk chunks[HF_BLOCK_CHUNK_COUNT];
 
 	extents_3d aabb;
+	// Separate AABB with greater extents on Y axis to prevent
+	// actions from getting clipped.
+	extents_3d editor_aabb;
 
 	// array index.
 	u16 index;
@@ -114,13 +120,9 @@ typedef struct hf_block {
 	ktexture splatmap;
 	u8* splatmap_pixels;
 
-} hf_block;
+	u32 shader_instance_id;
 
-typedef struct hf_terrain_material {
-	ktexture albedo_texture;
-	ktexture normal_texture;
-	ktexture mra_texture;
-} hf_terrain_material;
+} hf_block;
 
 // Represents the entire terrain.
 typedef struct hf_terrain {
@@ -138,7 +140,10 @@ typedef struct hf_terrain {
 	u64 base_vertex_buffer_offset;
 	hf_vertex_3d* vertices;
 
-	extents_3d extents;
+	extents_3d aabb;
+	// Separate AABB with greater extents on Y axis to prevent
+	// actions from getting clipped.
+	extents_3d editor_aabb;
 
 	hf_block* blocks;
 
@@ -146,18 +151,24 @@ typedef struct hf_terrain {
 	kshader hf_terrain_shader;
 
 	u8 material_count;
-	hf_terrain_material* materials;
+	ktexture albedo_texture_array;
+	ktexture normal_texture_array;
+	ktexture mra_texture_array;
+
+	kname albedo_asset_names[HF_TERRAIN_MAX_MATERIALS];
+	kname albedo_package_names[HF_TERRAIN_MAX_MATERIALS];
+	kname normal_asset_names[HF_TERRAIN_MAX_MATERIALS];
+	kname normal_package_names[HF_TERRAIN_MAX_MATERIALS];
+	kname mra_asset_names[HF_TERRAIN_MAX_MATERIALS];
+	kname mra_package_names[HF_TERRAIN_MAX_MATERIALS];
 } hf_terrain;
 
 typedef struct hf_terrain_chunk_render_data {
 	u64 vertex_buffer_offset;
 	u64 vertex_count;
+	u32 base_material_index;
 
-	u32 shader_instance_id;
-
-	ktexture albedo_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
-	ktexture normal_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
-	ktexture mra_textures[HF_TERRAIN_CHUNK_MAX_MATERIALS];
+	uvec4 material_indices;
 
 	u8 bound_point_light_count;
 	u8 bound_point_light_indices[HF_TERRAIN_MAX_BOUND_POINT_LIGHTS];
@@ -166,6 +177,7 @@ typedef struct hf_terrain_chunk_render_data {
 typedef struct hf_terrain_block_render_data {
 	u64 chunk_count;
 	hf_terrain_chunk_render_data* chunks;
+	u32 shader_instance_id;
 	ktexture splatmap;
 } hf_terrain_block_render_data;
 
@@ -176,6 +188,10 @@ typedef struct hf_terrain_render_data {
 	u32 block_count;
 	hf_terrain_block_render_data* blocks;
 
+	ktexture albedo_texture_array;
+	ktexture normal_texture_array;
+	ktexture mra_texture_array;
+
 } hf_terrain_render_data;
 
 KAPI hf_terrain hf_terrain_generate(u16 blocks_x, u16 blocks_z);
@@ -185,15 +201,15 @@ KAPI void hf_terrain_destroy(hf_terrain* t);
 
 KAPI void hf_terrain_get_render_data(const hf_terrain* t, struct frame_data* p_frame_data, hf_terrain_render_data* render_data);
 
-KAPI const hf_block* hf_terrain_get_block_at(const hf_terrain* t, u8 x, u8 z);
-KAPI const hf_chunk* hf_terrain_block_get_chunk_at(const hf_block* block, u8 x, u8 z);
+KAPI hf_block* hf_terrain_get_block_at(const hf_terrain* t, u8 x, u8 z);
+KAPI hf_chunk* hf_terrain_block_get_chunk_at(hf_block* block, u8 x, u8 z);
 
 KAPI i32 hf_terrain_chunk_get_vert_index_at(const hf_chunk* chunk, u8 x, u8 z);
 
 // NOTE: recalculates ALL vertices (normals and tangents) for the entire terrain. Don't do this unless absolutely required.
 KAPI void hf_terrain_recalculate_vertices(hf_terrain* t);
 
-KAPI void hf_terrain_chunk_recalculate_vertices(hf_terrain* t, const hf_chunk* chunk);
+KAPI void hf_terrain_chunk_recalculate_vertices(hf_terrain* t, hf_chunk* chunk);
 
 /**
  * Attempts to retrieve the terrain height at the given location. A false result means there is no terrain at that
@@ -201,3 +217,5 @@ KAPI void hf_terrain_chunk_recalculate_vertices(hf_terrain* t, const hf_chunk* c
  *
  */
 KAPI b8 hf_terrain_get_height_at(const hf_terrain* t, f32 world_x, f32 world_z, vec3* out_pos, vec3* out_normal);
+
+KAPI hf_vertex_3d* hf_terrain_chunk_get_closest_vertex(const hf_terrain* terrain, const hf_block* block, const hf_chunk* chunk, vec3 pos, u32* out_x, u32* out_z, i64* out_index);

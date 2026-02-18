@@ -94,12 +94,41 @@ binding_sets = [
 				array_size = 4
 				sampler_type = "samplerCube"
 			}
+			{
+				type = "texture"
+				name = "albedo_textures"
+				texture_type = "texture2DArray"
+			}
+			{
+				type = "sampler"
+				name = "albedo_sampler"
+				sampler_type = "sampler2D"
+			}
+			{
+				type = "texture"
+				name = "normal_textures"
+				texture_type = "texture2DArray"
+			}
+			{
+				type = "sampler"
+				name = "normal_sampler"
+				sampler_type = "sampler2D"
+			}
+			{
+				type = "texture"
+				name = "mra_textures"
+				texture_type = "texture2DArray"
+			}
+			{
+				type = "sampler"
+				name = "mra_sampler"
+				sampler_type = "sampler2D"
+			}
 		]
 	}
 	{
-		name = "terrain shader chunk binding set"
-		comment = "FIXME: generate one binding instance per terrain material combo."
-		max_instance_count = 2048
+		name = "terrain shader block binding set"
+		max_instance_count = 64
 		bindings = [
 			{
 				type = "texture"
@@ -110,42 +139,6 @@ binding_sets = [
 			{
 				type = "sampler"
 				name = "splatmap_sampler"
-				array_size = 0
-				sampler_type = "sampler2D"
-			}
-			{
-				type = "texture"
-				name = "albedo_textures"
-				array_size = 5
-				texture_type = "texture2D"
-			}
-			{
-				type = "sampler"
-				name = "albedo_sampler"
-				array_size = 0
-				sampler_type = "sampler2D"
-			}
-			{
-				type = "texture"
-				name = "normal_textures"
-				array_size = 5
-				texture_type = "texture2D"
-			}
-			{
-				type = "sampler"
-				name = "normal_sampler"
-				array_size = 0
-				sampler_type = "sampler2D"
-			}
-			{
-				type = "texture"
-				name = "mra_textures"
-				array_size = 5
-				texture_type = "texture2D"
-			}
-			{
-				type = "sampler"
-				name = "mra_sampler"
 				array_size = 0
 				sampler_type = "sampler2D"
 			}

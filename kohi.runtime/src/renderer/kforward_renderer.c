@@ -68,15 +68,6 @@ typedef struct world_debug_immediate_data {
 	vec4 colour;
 } world_debug_immediate_data;
 
-typedef struct colour_3d_global_ubo {
-	mat4 projection;
-	mat4 view;
-} colour_3d_global_ubo;
-
-typedef struct colour_3d_immediate_data {
-	mat4 model;
-} colour_3d_immediate_data;
-
 typedef struct depth_prepass_global_ubo {
 	mat4 projection;
 	mat4 view;
@@ -117,7 +108,7 @@ typedef struct hf_terrain_immediate_data {
 	u32 view_index;
 	u32 projection_index;
 	u32 dir_light_index;
-	u32 unused;
+	u32 base_material_index;
 
 	// bytes 16-31
 	// Index into the global point lights array. Up to 16 indices as u8s packed into 2 uints.
@@ -128,6 +119,9 @@ typedef struct hf_terrain_immediate_data {
 
 	// bytes 32-47
 	vec4 clipping_plane;
+
+	// bytes 48-63
+	uvec4 material_indices;
 } hf_terrain_immediate_data;
 
 b8 kforward_renderer_create(ktexture colour_buffer, ktexture depth_stencil_buffer, kforward_renderer* out_renderer) {
@@ -562,6 +556,8 @@ static b8 scene_pass(
 	{
 		renderer_begin_debug_label("scene - HF terrain", (vec3){0.5f, 1.0f, 0.5f});
 
+		const hf_terrain_render_data* trd = &pass_data->hf_terrain_data;
+
 		set_render_state_defaults(vp_rect);
 
 		// Ensure valid depth state. TODO: Do depth prepass for terrain.
@@ -611,28 +607,28 @@ static b8 scene_pass(
 			}
 			kshader_set_binding_texture(shader, 0, renderer->forward_pass.shader_set0_instance_id, 4, i, t);
 		}
+
+		// Textures are array-textures, so only need to be bound once.
+		kshader_set_binding_texture(shader, 0, renderer->forward_pass.shader_set0_instance_id, 6, 0, trd->albedo_texture_array);
+		kshader_set_binding_texture(shader, 0, renderer->forward_pass.shader_set0_instance_id, 8, 0, trd->normal_texture_array);
+		kshader_set_binding_texture(shader, 0, renderer->forward_pass.shader_set0_instance_id, 10, 0, trd->mra_texture_array);
+
 		kshader_apply_binding_set(shader, 0, renderer->forward_pass.shader_set0_instance_id);
 
 		// Draw the terrain chunks. This assumes chunks have already been culled at this point.
-		for (u32 b = 0; b < pass_data->hf_terrain_data.block_count; ++b) {
-			hf_terrain_block_render_data* block_data = &pass_data->hf_terrain_data.blocks[b];
+		for (u32 b = 0; b < trd->block_count; ++b) {
+			hf_terrain_block_render_data* block_data = &trd->blocks[b];
+
+			// Splatmap
+			kshader_set_binding_texture(shader, 1, block_data->shader_instance_id, 0, 0, block_data->splatmap);
+			ksampler_backend splatmap_sampler = renderer_generic_sampler_get(renderer->renderer_state, SHADER_GENERIC_SAMPLER_LINEAR_CLAMP);
+			kshader_set_binding_sampler(shader, 1, block_data->shader_instance_id, 1, 0, splatmap_sampler);
+
+			// Ensure the binding set is applied.
+			kshader_apply_binding_set(shader, 1, block_data->shader_instance_id);
 
 			for (u32 c = 0; c < block_data->chunk_count; ++c) {
 				hf_terrain_chunk_render_data* chunk_data = &block_data->chunks[c];
-
-				// Splatmap
-				kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 0, 0, block_data->splatmap);
-				ksampler_backend splatmap_sampler = renderer_generic_sampler_get(renderer->renderer_state, SHADER_GENERIC_SAMPLER_LINEAR_CLAMP);
-				kshader_set_binding_sampler(shader, 1, chunk_data->shader_instance_id, 1, 0, splatmap_sampler);
-
-				// Apply textures per material.
-				for (u8 m = 0; m < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++m) {
-					kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 2, m, chunk_data->albedo_textures[m]);
-					kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 4, m, chunk_data->normal_textures[m]);
-					kshader_set_binding_texture(shader, 1, chunk_data->shader_instance_id, 6, m, chunk_data->mra_textures[m]);
-				}
-				// Ensure the binding set is applied.
-				kshader_apply_binding_set(shader, 1, chunk_data->shader_instance_id);
 
 				// Immediate data.
 				hf_terrain_immediate_data immediate = {
@@ -640,6 +636,8 @@ static b8 scene_pass(
 					.clipping_plane = clipping_plane,
 					.num_p_lights = chunk_data->bound_point_light_count,
 					.irradiance_cubemap_index = 0, // FIXME: hardcoded
+					.base_material_index = chunk_data->base_material_index,
+					.material_indices = chunk_data->material_indices,
 				};
 
 				// Pack the point light indices
@@ -653,7 +651,7 @@ static b8 scene_pass(
 					KERROR("Renderer HF Terrain: failed to draw vertex buffer.");
 					return false;
 				}
-				if (!renderer_renderbuffer_draw(renderer->renderer_state, renderer->index_buffer, pass_data->hf_terrain_data.index_buffer_offset, pass_data->hf_terrain_data.index_count, 0, false)) {
+				if (!renderer_renderbuffer_draw(renderer->renderer_state, renderer->index_buffer, trd->index_buffer_offset, trd->index_count, 0, false)) {
 					KERROR("Renderer HF Terrain: failed to draw index buffer.");
 					return false;
 				}

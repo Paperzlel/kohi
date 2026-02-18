@@ -23,4 +23,5 @@ layout(location = 1) out struct dto {
 void main() {
 	out_dto.colour = in_colour;
 	gl_Position = global_ubo.projection * global_ubo.view * immediate.model * vec4(in_position.xyz, 1.0);
+	gl_PointSize = 10.0;
 }

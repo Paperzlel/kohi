@@ -342,6 +342,21 @@ ktexture texture_cubemap_acquire_from_pixel_data(kpixel_format format, u32 pixel
 	return texture_acquire_with_options_sync(options);
 }
 
+ktexture texture_acquire_layered_sync(kname texture_name, u32 layer_count, kname* asset_names, kname* package_names) {
+	ktexture_load_options options = {
+		.type = KTEXTURE_TYPE_2D_ARRAY,
+		.auto_release = true,
+		.name = texture_name,
+		.image_asset_name = INVALID_KNAME,
+		.package_name = INVALID_KNAME,
+		.format = KPIXEL_FORMAT_RGBA8,
+		.layer_count = layer_count,
+		.layer_image_asset_names = asset_names,
+		.layer_package_names = package_names,
+	};
+	return texture_acquire_with_options_sync(options);
+}
+
 // TODO:
 /* ktexture texture_cubemap_acquire_from_images(const struct kasset_image* images[6]) {
 } */
@@ -540,11 +555,11 @@ ktexture texture_acquire_with_options_sync(ktexture_load_options options) {
 	state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], KTEXTURE_FLAG_RENDERER_BUFFERING, options.multiframe_buffering);
 	state_ptr->flags[t] = FLAG_SET(state_ptr->flags[t], KTEXTURE_FLAG_IS_WRAPPED, options.is_wrapped);
 
-	kasset_image** assets = 0;
+	kasset_image** assets = KNULL;
 
 	// Gather asset/package names, if relevant.
-	kname* image_asset_names = 0;
-	kname* package_names = 0;
+	kname* image_asset_names = KNULL;
+	kname* package_names = KNULL;
 
 	if (!get_image_asset_names_from_options(&options, &state_ptr->array_sizes[t], &image_asset_names, &package_names)) {
 		goto texture_acquire_with_options_sync_cleanup;
@@ -566,23 +581,29 @@ ktexture texture_acquire_with_options_sync(ktexture_load_options options) {
 			}
 		}
 
-		// Take the dimensions of the first asset as the size for layered images.
-		if (assets[0]) {
-			state_ptr->widths[t] = assets[0]->width;
-			state_ptr->heights[t] = assets[0]->height;
-			state_ptr->mip_level_counts[t] = 0; // assets[0]->mip_levels;
-			state_ptr->formats[t] = assets[0]->format;
-		} else {
-			KWARN("Asset sub 0 not found, using reasonable defaults.");
-			// Provide reasonable defaults.
-			if (!state_ptr->widths[t]) {
-				state_ptr->widths[t] = 16;
+		// If width/height are not provided, use the dimensions of the first asset as the size for layered images.
+		if (!options.width || !options.height) {
+			if (assets[0]) {
+				state_ptr->widths[t] = assets[0]->width;
+				state_ptr->heights[t] = assets[0]->height;
+				state_ptr->mip_level_counts[t] = 0; // assets[0]->mip_levels;
+				state_ptr->formats[t] = assets[0]->format;
+			} else {
+				KWARN("Asset sub 0 not found, using reasonable defaults.");
+				// Provide reasonable defaults.
+				if (!state_ptr->widths[t]) {
+					state_ptr->widths[t] = 16;
+				}
+				if (!state_ptr->heights[t]) {
+					state_ptr->heights[t] = 16;
+				}
+				state_ptr->formats[t] = KPIXEL_FORMAT_RGBA8;
 			}
-			if (!state_ptr->heights[t]) {
-				state_ptr->heights[t] = 16;
-			}
-			state_ptr->formats[t] = KPIXEL_FORMAT_RGBA8;
 		}
+
+		// FIXME: Ensure all layers are the correct size. If they aren't, scale them appropriately.
+		// For asset data, this means swapping out the pixel array that's there with the "properly" sized
+		// one before doing any of the below.
 	}
 
 	// Calculate mip levels if needed.
@@ -1133,6 +1154,10 @@ static b8 get_image_asset_names_from_options(const ktexture_load_options* option
 		// Multiple assets.
 		if (options->type == KTEXTURE_TYPE_2D_ARRAY) {
 			count = options->layer_count;
+
+			if (count == 1) {
+				KWARN("KTEXTURE_TYPE_2D_ARRAY texture requested with a layer count of 1. Perhaps use a KTEXTURE_TYPE_2D instead?");
+			}
 
 			*image_asset_names = KALLOC_TYPE_CARRAY(kname, count);
 			*package_names = KALLOC_TYPE_CARRAY(kname, count);

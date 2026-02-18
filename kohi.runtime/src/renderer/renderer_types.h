@@ -851,3 +851,14 @@ typedef struct renderer_backend_interface {
 	void (*debug_pump_brakes)(struct renderer_backend_interface* backend);
 #endif
 } renderer_backend_interface;
+
+/** @brief Structure representing the global UBO for the included colour3d shader. */
+typedef struct colour_3d_global_ubo {
+	mat4 projection;
+	mat4 view;
+} colour_3d_global_ubo;
+
+/** @brief Structure representing the immediate data for the included colour3d shader. */
+typedef struct colour_3d_immediate_data {
+	mat4 model;
+} colour_3d_immediate_data;

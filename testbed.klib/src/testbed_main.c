@@ -488,7 +488,7 @@ b8 application_prepare_frame(struct application* app, struct frame_data* p_frame
 // Editor frame prepare
 #if KOHI_EDITOR
 	b8 draw_gizmo = app->state->mode == TESTBED_APP_MODE_EDITOR;
-	editor_frame_prepare(app->state->editor, p_frame_data, draw_gizmo, editor_gizmo_render_data);
+	editor_frame_prepare(app->state->editor, p_frame_data, app->state->editor->editor_camera, draw_gizmo, editor_gizmo_render_data);
 #endif
 
 	// Kohi UI pass
@@ -533,7 +533,7 @@ b8 application_render_frame(struct application* app, struct frame_data* p_frame_
 	b8 draw_gizmo = app->state->mode == TESTBED_APP_MODE_EDITOR;
 	kwindow* current_window = engine_active_window_get();
 	ktexture global_colourbuffer = current_window->renderer_state->colourbuffer;
-	if (!editor_render(app->state->editor, p_frame_data, global_colourbuffer, draw_gizmo, app->state->editor->editor_gizmo_render_data)) {
+	if (!editor_render(app->state->editor, p_frame_data, app->state->editor->editor_camera, global_colourbuffer, draw_gizmo, app->state->editor->editor_gizmo_render_data)) {
 		KERROR("Failed to render editor frame! See logs for details.");
 	}
 #endif

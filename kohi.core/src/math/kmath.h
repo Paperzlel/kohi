@@ -2871,3 +2871,13 @@ KINLINE obb aabb_to_obb(const aabb a, mat4 m) {
 
 	return out;
 }
+
+KINLINE kcapsule kcapsule_create(vec3 position, f32 radius, f32 height) {
+	kcapsule cap = {
+		.position = position,
+		.bottom = vec3_add(position, vec3_create(0, radius, 0)),
+		.top = vec3_add(position, vec3_create(0, height - radius, 0)),
+		.height = height,
+		.radius = radius};
+	return cap;
+}

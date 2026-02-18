@@ -256,6 +256,26 @@ KAPI ktexture texture_acquire_from_pixel_data(kpixel_format format, u32 pixel_ar
 
 KAPI ktexture texture_cubemap_acquire_from_pixel_data(kpixel_format format, u32 pixel_array_size, void* pixels, u32 width, u32 height, kname name);
 
+/**
+ * @brief Attempts to acquire a layered texture using the given image asset/package names. Synchronous.
+ *
+ * If it has not yet been loaded,
+ * this triggers it to load. If the texture is not found, a pointer to a texture with default image data
+ * loaded into its layers is returned. If the texture _is_ found and loaded, its reference counter is incremented.
+ * The texture_name is also used as the texture name.
+ * Texture will be auto-released when reference count reaches 0.
+ * Texture will be of KTEXTURE_TYPE_2D_ARRAY.
+ *
+ * This function is considered to be synchronous and is guaranteed to be loaded on return.
+ *
+ * @param texture_name The name to use for the texture.
+ * @param layer_count A nonzero layer count.
+ * @param asset_names An array of asset names to be loaded, one per layer. Length of array must be equal to layer_count.
+ * @param package_names An array of package names to be used when loading. One per layer, aligns with asset_names. Length of array must be equal to layer_count.
+ * @return The loaded texture. Can be a layered texture loaded with default pixel data if not found. INVALID_KTEXTURE if error.
+ */
+KAPI ktexture texture_acquire_layered_sync(kname texture_name, u32 layer_count, kname* asset_names, kname* package_names);
+
 /* KAPI ktexture texture_cubemap_acquire_from_images(const struct kasset_image* images[6]); */
 
 typedef struct ktexture_load_options {

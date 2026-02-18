@@ -1726,7 +1726,7 @@ b8 kscene_raycast(struct kscene* scene, const ray* r, struct raycast_result* out
 	return false;
 }
 
-b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, hf_block* out_block, hf_chunk* out_chunk, vec3* out_pos, vec3* out_normal) {
+b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, b8 use_editor_aabb, hf_block* out_block, hf_chunk* out_chunk, vec3* out_pos, vec3* out_normal) {
 	// FIXME: brute forcing this for now, will handle better in the future.
 
 	if (!scene || !scene->hf.blocks) {
@@ -1735,18 +1735,20 @@ b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, hf_block* out_b
 
 	u32 block_count = scene->hf.block_count_z * scene->hf.block_count_x;
 	for (u32 b = 0; b < block_count; ++b) {
+		hf_block* block = &scene->hf.blocks[b];
 
 		f32 tmin = 0.0f;
 		f32 tmaxi = r->max_distance;
-		b8 block_hit = ray_intersects_aabb(scene->hf.blocks[b].aabb, r->origin, r->direction, r->max_distance, &tmin, &tmaxi);
+		b8 block_hit = ray_intersects_aabb(use_editor_aabb ? block->editor_aabb : block->aabb, r->origin, r->direction, r->max_distance, &tmin, &tmaxi);
 		if (block_hit) {
 			// Iterate the chunks and check for a aabb hit there.
 			for (u32 c = 0; c < HF_BLOCK_CHUNK_COUNT; ++c) {
+				hf_chunk* chunk = &block->chunks[c];
 				tmin = 0.0f;
 				tmaxi = r->max_distance;
-				b8 chunk_hit = ray_intersects_aabb(scene->hf.blocks[b].chunks[c].aabb, r->origin, r->direction, r->max_distance, &tmin, &tmaxi);
+				b8 chunk_hit = ray_intersects_aabb(use_editor_aabb ? chunk->editor_aabb : chunk->aabb, r->origin, r->direction, r->max_distance, &tmin, &tmaxi);
 				if (chunk_hit) {
-					u64 vertex_offset = (scene->hf.blocks[b].chunks[c].vertex_buffer_offset - scene->hf.base_vertex_buffer_offset) / sizeof(hf_vertex_3d);
+					u64 vertex_offset = (chunk->vertex_buffer_offset - scene->hf.base_vertex_buffer_offset) / sizeof(hf_vertex_3d);
 					triangle tri;
 					vec3 hit_pos;
 					vec3 hit_normal;
@@ -1754,8 +1756,8 @@ b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, hf_block* out_b
 					if (triangle_hit) {
 						// Collision! Yay
 						/* KTRACE("Terrain hit: pos=%V3.3, normal=%V3.3", &hit_pos, &hit_normal); */
-						*out_block = scene->hf.blocks[b];
-						*out_chunk = scene->hf.blocks[b].chunks[c];
+						*out_block = *block;
+						*out_chunk = *chunk;
 						*out_pos = hit_pos;
 						*out_normal = hit_normal;
 						return true;
@@ -2802,20 +2804,30 @@ hf_terrain_render_data kscene_get_hf_terrain_render_data(
 
 	hf_terrain_render_data data = {0};
 
+	const hf_terrain* t = &scene->hf;
+
 	data.index_count = HF_INDEX_COUNT;
-	data.index_buffer_offset = scene->hf.index_buffer_offset;
-	data.block_count = scene->hf.block_count_z * scene->hf.block_count_x;
+	data.index_buffer_offset = t->index_buffer_offset;
+	data.block_count = t->block_count_z * t->block_count_x;
 	data.blocks = p_frame_data->allocator.allocate(sizeof(hf_terrain_block_render_data) * data.block_count);
+
+	// Array textures.
+	data.albedo_texture_array = t->albedo_texture_array;
+	data.normal_texture_array = t->normal_texture_array;
+	data.mra_texture_array = t->mra_texture_array;
 
 	// TODO: frustum culling.
 	for (u16 i = 0; i < data.block_count; ++i) {
-		hf_block* block = &scene->hf.blocks[i];
+		// TODO: frustum cull the block
+		hf_block* block = &t->blocks[i];
 		hf_terrain_block_render_data* block_rd = &data.blocks[i];
 
 		block_rd->chunk_count = HF_BLOCK_CHUNK_COUNT;
 		block_rd->chunks = p_frame_data->allocator.allocate(sizeof(hf_terrain_chunk_render_data) * block_rd->chunk_count);
 		block_rd->splatmap = block->splatmap;
+		block_rd->shader_instance_id = block->shader_instance_id;
 
+		// TODO: frustum culling within this block
 		for (u16 c = 0; c < block_rd->chunk_count; ++c) {
 			hf_chunk* chunk = &block->chunks[c];
 			hf_terrain_chunk_render_data* chunk_rd = &block_rd->chunks[c];
@@ -2824,12 +2836,9 @@ hf_terrain_render_data kscene_get_hf_terrain_render_data(
 			chunk_rd->vertex_count = HF_CHUNK_VERTEX_COUNT;
 			chunk_rd->vertex_buffer_offset = chunk->vertex_buffer_offset;
 
-			chunk_rd->shader_instance_id = chunk->shader_instance_id;
-
-			for (u8 m = 0; m < HF_TERRAIN_CHUNK_MAX_MATERIALS; ++m) {
-				chunk_rd->albedo_textures[m] = scene->hf.materials[chunk->material_indices[m]].albedo_texture;
-				chunk_rd->normal_textures[m] = scene->hf.materials[chunk->material_indices[m]].normal_texture;
-				chunk_rd->mra_textures[m] = scene->hf.materials[chunk->material_indices[m]].mra_texture;
+			chunk_rd->base_material_index = chunk->material_indices[0];
+			for (u8 a = 0; a < HF_TERRAIN_CHUNK_MAX_MATERIALS - 1; ++a) {
+				chunk_rd->material_indices.elements[a] = chunk->material_indices[a + 1];
 			}
 
 			// FIXME: Pick the closest lights that actually interact with this geometry and add them
@@ -3904,9 +3913,9 @@ b8 kscene_hf_terrain_save(const struct kscene* scene) {
 	asset.material_names = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material_names, asset.material_count);
 	asset.materials = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material, asset.material_count);
 	for (u32 i = 0; i < scene->hf.material_count; ++i) {
-		asset.material_names[i].albedo_str = kname_string_get(texture_name_get(scene->hf.materials[i].albedo_texture));
-		asset.material_names[i].normal_str = kname_string_get(texture_name_get(scene->hf.materials[i].normal_texture));
-		asset.material_names[i].mra_str = kname_string_get(texture_name_get(scene->hf.materials[i].mra_texture));
+		asset.material_names[i].albedo_str = kname_string_get(scene->hf.albedo_asset_names[i]);
+		asset.material_names[i].normal_str = kname_string_get(scene->hf.normal_asset_names[i]);
+		asset.material_names[i].mra_str = kname_string_get(scene->hf.mra_asset_names[i]);
 	}
 
 	u64 asset_size = 0;

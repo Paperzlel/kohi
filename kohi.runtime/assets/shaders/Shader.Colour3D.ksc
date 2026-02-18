@@ -6,6 +6,7 @@ depth_write=true
 topology_types = [
     "line_list"
     "triangle_list"
+	"point_list"
 ]
 
 attachments = {

@@ -85,7 +85,7 @@ KAPI void kscene_set_fog_far(struct kscene* scene, f32 far);
 KAPI void kscene_get_shadow_properties(struct kscene* scene, kcamera current_camera, f32* out_shadow_dist, f32* out_shadow_fade_distance, f32* out_shadow_split_mult, f32* out_shadow_bias);
 
 KAPI b8 kscene_raycast(struct kscene* scene, const struct ray* r, struct raycast_result* out_result);
-KAPI b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, hf_block* out_block, hf_chunk* out_chunk, vec3* out_pos, vec3* out_normal);
+KAPI b8 kscene_hf_terrain_raycast(struct kscene* scene, const ray* r, b8 use_editor_aabb, hf_block* out_block, hf_chunk* out_chunk, vec3* out_pos, vec3* out_normal);
 KAPI hf_terrain* kscene_hf_terrain_get(struct kscene* scene);
 
 /**

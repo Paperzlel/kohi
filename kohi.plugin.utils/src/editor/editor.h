@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kui_types.h"
+#include "math/math_types.h"
 #include <core/frame_data.h>
 #include <core/keymap.h>
 #include <kui_system.h>
@@ -78,6 +79,11 @@ typedef struct editor_state {
 	krenderbuffer index_buffer;
 
 	keditor_gizmo_pass_render_data* editor_gizmo_render_data;
+
+	kshader colour_shader;
+	u8 debug_point_count;
+	colour_vertex_3d debug_points[256];
+	u64 debug_points_vertex_buffer_offset;
 
 	editor_mode mode;
 
@@ -183,6 +189,17 @@ typedef struct editor_state {
 	i8 hft_paint_brush_strength;
 	u8 hft_paint_material_index;
 
+	// HF Elevation state
+	// Elevation mod amount (negative is down, positive is up)
+	f32 hft_elevation_diameter;
+	f32 hft_elevation_amount;
+	b8 hft_elevation_set_height;
+	kui_control hft_elevation_diameter_textbox;
+	kui_control hft_elevation_amount_textbox;
+	kui_control hft_elevation_set_height_checkbox;
+	kui_control hft_elevation_diameter_label;
+	kui_control hft_elevation_amount_label;
+
 } editor_state;
 
 KAPI b8 editor_initialize(u64* memory_requirement, struct editor_state* state);
@@ -199,8 +216,8 @@ KAPI void editor_select_parent(struct editor_state* state);
 KAPI b8 editor_selection_contains(struct editor_state* state, kentity entity);
 
 KAPI void editor_update(struct editor_state* state, frame_data* p_frame_data);
-KAPI void editor_frame_prepare(struct editor_state* state, frame_data* p_frame_data, b8 draw_gizmo, keditor_gizmo_pass_render_data* gizmo_pass_render_data);
-KAPI b8 editor_render(struct editor_state* state, frame_data* p_frame_data, ktexture colour_buffer_target, b8 draw_gizmo, keditor_gizmo_pass_render_data* gizmo_pass_render_data);
+KAPI void editor_frame_prepare(struct editor_state* state, frame_data* p_frame_data, kcamera current_camera, b8 draw_gizmo, keditor_gizmo_pass_render_data* gizmo_pass_render_data);
+KAPI b8 editor_render(struct editor_state* state, frame_data* p_frame_data, kcamera current_camera, ktexture colour_buffer_target, b8 draw_gizmo, keditor_gizmo_pass_render_data* gizmo_pass_render_data);
 
 KAPI void editor_on_window_resize(struct editor_state* state, const struct kwindow* window);
 

@@ -55,16 +55,16 @@ layout(set = 0, binding = 2) uniform texture2DArray shadow_texture;
 layout(set = 0, binding = 3) uniform sampler shadow_sampler;
 layout(set = 0, binding = 4) uniform textureCube irradiance_textures[MATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT];
 layout(set = 0, binding = 5) uniform sampler irradiance_sampler;
+layout(set = 0, binding = 6) uniform texture2DArray albedo_textures;
+layout(set = 0, binding = 7) uniform sampler albedo_sampler;
+layout(set = 0, binding = 8) uniform texture2DArray normal_textures;
+layout(set = 0, binding = 9) uniform sampler normal_sampler;
+layout(set = 0, binding = 10) uniform texture2DArray mra_textures;
+layout(set = 0, binding = 11) uniform sampler mra_sampler;
 
-// Binding Set 1 - per terrain chunk 
+// Set 1, per-block
 layout(set = 1, binding = 0) uniform texture2D splatmap_texture;
 layout(set = 1, binding = 1) uniform sampler splatmap_sampler;
-layout(set = 1, binding = 2) uniform texture2D albedo_textures[HF_TERRAIN_MAX_MATERIAL_COUNT];
-layout(set = 1, binding = 3) uniform sampler albedo_sampler;
-layout(set = 1, binding = 4) uniform texture2D normal_textures[HF_TERRAIN_MAX_MATERIAL_COUNT];
-layout(set = 1, binding = 5) uniform sampler normal_sampler;
-layout(set = 1, binding = 6) uniform texture2D mra_textures[HF_TERRAIN_MAX_MATERIAL_COUNT];
-layout(set = 1, binding = 7) uniform sampler mra_sampler;
 
 // Immediate data
 layout(push_constant) uniform immediate_data {
@@ -72,7 +72,7 @@ layout(push_constant) uniform immediate_data {
     uint view_index;
     uint projection_index;
     uint dir_light_index;
-    uint unused;
+    uint base_material_index;
 
     // bytes 16-31
     // Index into the global point lights array. Up to 16 indices as u8s packed into 2 uints.
@@ -83,6 +83,9 @@ layout(push_constant) uniform immediate_data {
 
     // bytes 32-47
 	vec4 clipping_plane;
+
+	// bytes 48-63
+	uvec4 material_indices;
 } immediate;
 
 // Data Transfer Object
@@ -135,11 +138,11 @@ void main() {
     vec3 local_normal = vec3(0, 0, 1.0);
 
 	// Normals
-	vec3 normal_0 = texture(sampler2D(normal_textures[0], normal_sampler), in_dto.tex_coord).rgb * 2.0 - 1.0;
-	vec3 normal_1 = texture(sampler2D(normal_textures[1], normal_sampler), in_dto.tex_coord).rgb * 2.0 - 1.0;
-	vec3 normal_2 = texture(sampler2D(normal_textures[2], normal_sampler), in_dto.tex_coord).rgb * 2.0 - 1.0;
-	vec3 normal_3 = texture(sampler2D(normal_textures[3], normal_sampler), in_dto.tex_coord).rgb * 2.0 - 1.0;
-	vec3 normal_4 = texture(sampler2D(normal_textures[4], normal_sampler), in_dto.tex_coord).rgb * 2.0 - 1.0;
+	vec3 normal_0 = texture(sampler2DArray(normal_textures, normal_sampler), vec3(in_dto.tex_coord, immediate.base_material_index)).rgb * 2.0 - 1.0;
+	vec3 normal_1 = texture(sampler2DArray(normal_textures, normal_sampler), vec3(in_dto.tex_coord, immediate.material_indices[0])).rgb * 2.0 - 1.0;
+	vec3 normal_2 = texture(sampler2DArray(normal_textures, normal_sampler), vec3(in_dto.tex_coord, immediate.material_indices[1])).rgb * 2.0 - 1.0;
+	vec3 normal_3 = texture(sampler2DArray(normal_textures, normal_sampler), vec3(in_dto.tex_coord, immediate.material_indices[2])).rgb * 2.0 - 1.0;
+	vec3 normal_4 = texture(sampler2DArray(normal_textures, normal_sampler), vec3(in_dto.tex_coord, immediate.material_indices[3])).rgb * 2.0 - 1.0;
 
     // Weights
 	float w1 = splat_tex.r;
@@ -176,11 +179,11 @@ void main() {
     float alpha = 1.0;
 
 	// Base colour
-	vec4 tex_0 = texture(sampler2D(albedo_textures[0], albedo_sampler), in_dto.tex_coord);
-	vec4 tex_1 = texture(sampler2D(albedo_textures[1], albedo_sampler), in_dto.tex_coord);
-	vec4 tex_2 = texture(sampler2D(albedo_textures[2], albedo_sampler), in_dto.tex_coord);
-	vec4 tex_3 = texture(sampler2D(albedo_textures[3], albedo_sampler), in_dto.tex_coord);
-	vec4 tex_4 = texture(sampler2D(albedo_textures[4], albedo_sampler), in_dto.tex_coord);
+	vec4 tex_0 = texture(sampler2DArray(albedo_textures, albedo_sampler), vec3(in_dto.tex_coord, immediate.base_material_index));
+	vec4 tex_1 = texture(sampler2DArray(albedo_textures, albedo_sampler), vec3(in_dto.tex_coord, immediate.material_indices[0]));
+	vec4 tex_2 = texture(sampler2DArray(albedo_textures, albedo_sampler), vec3(in_dto.tex_coord, immediate.material_indices[1]));
+	vec4 tex_3 = texture(sampler2DArray(albedo_textures, albedo_sampler), vec3(in_dto.tex_coord, immediate.material_indices[2]));
+	vec4 tex_4 = texture(sampler2DArray(albedo_textures, albedo_sampler), vec3(in_dto.tex_coord, immediate.material_indices[3]));
 
 	vec4 base_colour_samp = 
 		tex_0 * w0 +
@@ -193,11 +196,11 @@ void main() {
 	albedo = pow(base_colour_samp.rgb, vec3(2.2));
 
 	// MRA
-	vec4 mra_0 = texture(sampler2D(mra_textures[0], mra_sampler), in_dto.tex_coord);
-	vec4 mra_1 = texture(sampler2D(mra_textures[1], mra_sampler), in_dto.tex_coord);
-	vec4 mra_2 = texture(sampler2D(mra_textures[2], mra_sampler), in_dto.tex_coord);
-	vec4 mra_3 = texture(sampler2D(mra_textures[3], mra_sampler), in_dto.tex_coord);
-	vec4 mra_4 = texture(sampler2D(mra_textures[4], mra_sampler), in_dto.tex_coord);
+	vec4 mra_0 = texture(sampler2DArray(mra_textures, mra_sampler), vec3(in_dto.tex_coord, immediate.base_material_index));
+	vec4 mra_1 = texture(sampler2DArray(mra_textures, mra_sampler), vec3(in_dto.tex_coord, immediate.material_indices[0]));
+	vec4 mra_2 = texture(sampler2DArray(mra_textures, mra_sampler), vec3(in_dto.tex_coord, immediate.material_indices[1]));
+	vec4 mra_3 = texture(sampler2DArray(mra_textures, mra_sampler), vec3(in_dto.tex_coord, immediate.material_indices[2]));
+	vec4 mra_4 = texture(sampler2DArray(mra_textures, mra_sampler), vec3(in_dto.tex_coord, immediate.material_indices[3]));
 
 	vec4 mra_samp = 
 		mra_0 * w0 +

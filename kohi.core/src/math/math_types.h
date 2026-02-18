@@ -666,3 +666,11 @@ typedef struct ksphere {
 	vec3 position;
 	f32 radius;
 } ksphere;
+
+typedef struct kcapsule {
+	vec3 position;
+	vec3 bottom;
+	vec3 top;
+	f32 radius;
+	f32 height;
+} kcapsule;

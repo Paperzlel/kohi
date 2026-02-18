@@ -61,7 +61,7 @@ layout(push_constant) uniform immediate_data {
     uint view_index;
     uint projection_index;
     uint dir_light_index;
-    uint unused;
+    uint base_material_index;
 
     // bytes 16-31
     // Index into the global point lights array. Up to 16 indices as u8s packed into 2 uints.
@@ -72,6 +72,9 @@ layout(push_constant) uniform immediate_data {
 
     // bytes 32-47
 	vec4 clipping_plane;
+
+	// bytes 48-63
+	uvec4 material_indices;
 } immediate;
 
 // Data Transfer Object
