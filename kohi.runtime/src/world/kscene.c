@@ -1232,6 +1232,9 @@ b8 kscene_frame_prepare(struct kscene* scene, struct frame_data* p_frame_data, u
 				render_data->forward_data.directional_light_spaces[c] = shadow_camera_view_projections[c];
 			}
 
+			for (u32 i = 0; i < KMATERIAL_MAX_IRRADIANCE_CUBEMAP_COUNT; ++i) {
+				render_data->forward_data.irradiance_cubemap_textures[i] = INVALID_KTEXTURE;
+			}
 			// HACK: use the skybox cubemap as the irradiance texture for now.
 			ktexture sb_texture = render_data->forward_data.skybox.skybox_texture;
 			render_data->forward_data.irradiance_cubemap_texture_count = 1;

@@ -323,7 +323,7 @@ static void process_queue(ring_queue* queue, kmutex* queue_mutex) {
 					KERROR("Failed to release lock on queue mutex!");
 				}
 				thread->info = info;
-				KTRACE("Assigning job to thread: %u", thread->index);
+				/* KTRACE("Assigning job to thread: %u", thread->index); */
 				thread_found = true;
 				// Signal the thread's semaphore since there is work to be done.
 				ksemaphore_signal(&thread->semaphore);

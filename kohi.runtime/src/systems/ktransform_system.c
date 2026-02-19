@@ -907,13 +907,13 @@ static void handle_destroy(ktransform_system_state* state, ktransform* t) {
 	KASSERT_MSG(state, "ktransform_system state pointer accessed before initialized");
 
 	if (*t != KTRANSFORM_INVALID) {
-		KTRACE("Destroying transform handle %u", *t);
-		if(state->flags) {
+		/* KTRACE("Destroying transform handle %u", *t); */
+		if (state->flags) {
 			state->flags[*t] = 0;
 			FLAG_SET(state->flags[*t], KTRANSFORM_FLAG_FREE, true);
 		}
 		// Ensure the parent is invalid.
-		if(state->parents) {
+		if (state->parents) {
 			state->parents[*t] = KTRANSFORM_INVALID;
 		}
 		state->allocated--;

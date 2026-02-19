@@ -1057,7 +1057,7 @@ void renderer_renderbuffer_destroy(struct renderer_system_state* state, krenderb
 	}
 
 	krenderbuffer_data* buffer = &state->renderbuffers[handle];
-	KTRACE("Unregistering renderbuffer '%s'.", kname_string_get(buffer->name));
+	/* KTRACE("Unregistering renderbuffer '%s'.", kname_string_get(buffer->name)); */
 	// Just setting the array entry's type to unknown removes it from registration.
 	buffer->type = RENDERBUFFER_TYPE_UNKNOWN;
 

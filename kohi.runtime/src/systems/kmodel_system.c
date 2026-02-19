@@ -142,7 +142,7 @@ static void kasset_model_loaded(void* listener, kasset_model* asset) {
 			kmodel_node* target = &base->nodes[i];
 
 			target->name = source->name;
-			KTRACE("node: '%k'", target->name);
+			/* KTRACE("node: '%k'", target->name); */
 			target->parent_index = source->parent_index;
 			target->local_transform = source->local_transform;
 			target->child_count = source->child_count;

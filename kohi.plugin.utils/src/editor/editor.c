@@ -659,7 +659,7 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 		{
 			// Reasonable tool defaults
 			state->hft_elevation_amount = 0.01f;
-			state->hft_elevation_diameter = 1.0f;
+			state->hft_elevation_diameter = 5.0f;
 			state->hft_elevation_set_height = false;
 
 			state->hft_mode_elevation_checkbox = kui_checkbox_control_create(kui_state, "hft_mode_elevation_checkbox", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Elevation");
@@ -949,44 +949,24 @@ void editor_add_to_selected_entities(struct editor_state* state, u32 count, kent
 	// Update inspector position controls.
 	{
 		vec3 position = kscene_get_entity_position(state->edit_scene, state->selection_list[0]);
-		const char* x = f32_to_string(position.x);
-		kui_textbox_text_set(state->kui_state, state->entity_position_x_textbox, x);
-		string_free(x);
-		const char* y = f32_to_string(position.y);
-		kui_textbox_text_set(state->kui_state, state->entity_position_y_textbox, y);
-		string_free(y);
-		const char* z = f32_to_string(position.z);
-		kui_textbox_text_set(state->kui_state, state->entity_position_z_textbox, z);
-		string_free(z);
+		kui_textbox_f32_set(state->kui_state, state->entity_position_x_textbox, position.x);
+		kui_textbox_f32_set(state->kui_state, state->entity_position_y_textbox, position.y);
+		kui_textbox_f32_set(state->kui_state, state->entity_position_z_textbox, position.z);
 	}
 	// Update inspector orientation controls.
 	{
 		quat rotation = kscene_get_entity_rotation(state->edit_scene, state->selection_list[0]);
-		const char* x = f32_to_string(rotation.x);
-		kui_textbox_text_set(state->kui_state, state->entity_orientation_x_textbox, x);
-		string_free(x);
-		const char* y = f32_to_string(rotation.y);
-		kui_textbox_text_set(state->kui_state, state->entity_orientation_y_textbox, y);
-		string_free(y);
-		const char* z = f32_to_string(rotation.z);
-		kui_textbox_text_set(state->kui_state, state->entity_orientation_z_textbox, z);
-		string_free(z);
-		const char* w = f32_to_string(rotation.w);
-		kui_textbox_text_set(state->kui_state, state->entity_orientation_w_textbox, w);
-		string_free(w);
+		kui_textbox_f32_set(state->kui_state, state->entity_orientation_x_textbox, rotation.x);
+		kui_textbox_f32_set(state->kui_state, state->entity_orientation_y_textbox, rotation.y);
+		kui_textbox_f32_set(state->kui_state, state->entity_orientation_z_textbox, rotation.z);
+		kui_textbox_f32_set(state->kui_state, state->entity_orientation_w_textbox, rotation.w);
 	}
 	// Update inspector scale controls.
 	{
 		vec3 scale = kscene_get_entity_scale(state->edit_scene, state->selection_list[0]);
-		const char* x = f32_to_string(scale.x);
-		kui_textbox_text_set(state->kui_state, state->entity_scale_x_textbox, x);
-		string_free(x);
-		const char* y = f32_to_string(scale.y);
-		kui_textbox_text_set(state->kui_state, state->entity_scale_y_textbox, y);
-		string_free(y);
-		const char* z = f32_to_string(scale.z);
-		kui_textbox_text_set(state->kui_state, state->entity_scale_z_textbox, z);
-		string_free(z);
+		kui_textbox_f32_set(state->kui_state, state->entity_scale_x_textbox, scale.x);
+		kui_textbox_f32_set(state->kui_state, state->entity_scale_y_textbox, scale.y);
+		kui_textbox_f32_set(state->kui_state, state->entity_scale_z_textbox, scale.z);
 	}
 }
 
@@ -2064,6 +2044,98 @@ static void hf_terrain_recalc_and_update_verts(hf_terrain* terrain, hf_chunk** p
 	}
 }
 
+static b8 update_list_includes(
+	hf_chunk* chunk,
+	u8 chunk_update_count,
+	hf_chunk* update_list[128]) {
+	for (u8 i = 0; i < chunk_update_count; ++i) {
+		if (update_list[i] == chunk) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void adjust_terrain_vertex_at(
+	editor_state* state,
+	hf_terrain* terrain,
+	hf_block* block,
+	hf_chunk* chunk,
+	i32 center_x,
+	i32 center_z,
+	i64 index,
+	f32 weighted_amount,
+	u8* chunk_update_count,
+	hf_chunk* update_list[128]) {
+
+	hf_terrain_adjust_vertex_at(terrain, index, weighted_amount, state->hft_elevation_set_height);
+	if (!update_list_includes(chunk, *chunk_update_count, update_list)) {
+		update_list[*chunk_update_count] = chunk;
+		(*chunk_update_count)++;
+	}
+	// Check if the vertex is shared with the next chunk on the X axis.
+	{
+		hf_chunk* new_chunk = chunk;
+		index = -1;
+		if (center_x == HF_CHUNK_QUAD_COUNT) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, center_x, center_z, 1, 0, &index);
+		} else if (center_x == 0) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, center_x, center_z, -1, 0, &index);
+		}
+
+		if (index >= 0) {
+			hf_terrain_adjust_vertex_at(terrain, index, weighted_amount, state->hft_elevation_set_height);
+			if (new_chunk != chunk && !update_list_includes(new_chunk, *chunk_update_count, update_list)) {
+				update_list[*chunk_update_count] = new_chunk;
+				(*chunk_update_count)++;
+			}
+		}
+	}
+
+	// Check if the vertex is shared with the next chunk on the Z axis.
+	{
+		hf_chunk* new_chunk = chunk;
+		index = -1;
+		if (center_z == HF_CHUNK_QUAD_COUNT) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, center_x, center_z, 0, 1, &index);
+		} else if (center_z == 0) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, center_x, center_z, 0, -1, &index);
+		}
+
+		if (index >= 0) {
+			hf_terrain_adjust_vertex_at(terrain, index, weighted_amount, state->hft_elevation_set_height);
+			if (new_chunk != chunk && !update_list_includes(new_chunk, *chunk_update_count, update_list)) {
+				update_list[*chunk_update_count] = new_chunk;
+				(*chunk_update_count)++;
+			}
+		}
+	}
+
+	// If in a corner, also need to check if there's a diagonally-opposite shared vertex.
+	{
+		hf_chunk* new_chunk = chunk;
+		index = -1;
+		// All intercardinal directions need checking.
+		if (center_x == HF_CHUNK_QUAD_COUNT && center_z == HF_CHUNK_QUAD_COUNT) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, center_x, center_z, 1, 1, &index);
+		} else if (center_x == HF_CHUNK_QUAD_COUNT && center_z == 0) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, center_x, center_z, 1, -1, &index);
+		} else if (center_x == 0 && center_z == HF_CHUNK_QUAD_COUNT) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, center_x, center_z, -1, 1, &index);
+		} else if (center_x == 0 && center_z == 0) {
+			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, center_x, center_z, -1, -1, &index);
+		}
+
+		if (index >= 0) {
+			hf_terrain_adjust_vertex_at(terrain, index, weighted_amount, state->hft_elevation_set_height);
+			if (new_chunk != chunk && !update_list_includes(new_chunk, *chunk_update_count, update_list)) {
+				update_list[*chunk_update_count] = new_chunk;
+				(*chunk_update_count)++;
+			}
+		}
+	}
+}
+
 static void hf_terrain_do_elevation(
 	editor_state* state,
 	vec3 pos,
@@ -2071,81 +2143,114 @@ static void hf_terrain_do_elevation(
 	hf_block* block,
 	hf_chunk* chunk,
 	i64 index,
-	u32 x,
-	u32 z,
-	hf_vertex_3d* closest_vertex) {
+	u32 center_x,
+	u32 center_z,
+	hf_vertex_3d* closest_vertex,
+	f32 mod) {
 
 	hf_terrain* terrain = kscene_hf_terrain_get(state->edit_scene);
 
-	KINFO("%s - pos=%V3.3", __FUNCTION__, &pos);
+	/* KINFO("%s - pos=%V3.3", __FUNCTION__, &pos); */
 
-	hf_chunk* new_chunk;
+	// Ensure direction first.
+	f32 center_amount = state->hft_elevation_amount * mod;
 
 	u8 chunk_update_count = 0;
-	hf_chunk* update_list[4];
-	hf_terrain_adjust_vertex_at(terrain, index, state->hft_elevation_amount, state->hft_elevation_set_height);
-	update_list[chunk_update_count] = chunk;
-	chunk_update_count++;
+	hf_chunk* update_list[128];
 
-	// Check if the vertex is shared with the next chunk on the X axis.
-	{
-		index = -1;
-		if (x == HF_CHUNK_QUAD_COUNT) {
-			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 1, 0, &index);
-		} else if (x == 0) {
-			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, -1, 0, &index);
-		}
+	if (state->hft_elevation_diameter == 1) {
+		f32 weighted_amount = center_amount * 1.0f;
+		adjust_terrain_vertex_at(state, terrain, block, chunk, center_x, center_z, index, weighted_amount, &chunk_update_count, update_list);
+	} else {
 
-		if (index >= 0) {
-			hf_terrain_adjust_vertex_at(terrain, index, state->hft_elevation_amount, state->hft_elevation_set_height);
-			if (new_chunk != chunk) {
-				update_list[chunk_update_count] = new_chunk;
-				chunk_update_count++;
+		// Work in a grid that's the size of the diameter.
+		for (u8 z = 0; z < state->hft_elevation_diameter; ++z) {
+			for (u8 x = 0; x < state->hft_elevation_diameter; ++x) {
+				hf_block* b = block;
+				hf_chunk* c = chunk;
+				i32 block_x = b->x;
+				i32 block_z = b->z;
+
+				i32 chunk_x = c->x;
+				i32 chunk_z = c->z;
+				i16 xpos = kfloor((center_x - state->hft_elevation_diameter * 0.5f) + x);
+				i16 zpos = kfloor((center_z - state->hft_elevation_diameter * 0.5f) + z);
+
+				f32 distance = vec2_distance((vec2){xpos, zpos}, (vec2){center_x, center_z});
+				f32 weight = kfalloff_smooth(distance / state->hft_elevation_diameter);
+
+				// Move along to the next chunk (or block) if need be along X.
+				if (xpos < 0) {
+					// move a chunk back along x
+					chunk_x--;
+					if (chunk_x < 0) {
+						// Move back a block, to the last chunk.
+						block_x--;
+						if (block_x < 0) {
+							// Exceeded bounds, skip.
+							continue;
+						}
+						chunk_x += HF_BLOCK_CHUNK_DIM;
+					}
+					xpos += HF_CHUNK_QUAD_COUNT; // vertex stride?
+				} else if (xpos >= HF_CHUNK_QUAD_COUNT) {
+					// Move a chunk forward along x.
+					chunk_x++;
+					if (chunk_x >= HF_BLOCK_CHUNK_DIM) {
+						// Move forward a block;
+						block_x++;
+						if (block_x >= terrain->block_count_x) {
+							// Exceeded bounds, skip.
+							continue;
+						}
+						chunk_x -= HF_BLOCK_CHUNK_DIM;
+					}
+					xpos -= HF_CHUNK_QUAD_COUNT; // HF_VERTEX_STRIDE;
+				}
+
+				// Move along to the next chunk (or block) if need be along Z.
+				if (zpos < 0) {
+					// move a chunk back along z
+					chunk_z--;
+					if (chunk_z < 0) {
+						// Move back a block, to the last chunk.
+						block_z--;
+						if (block_z < 0) {
+							// Exceeded bounds, skip.
+							continue;
+						}
+						chunk_z += HF_BLOCK_CHUNK_DIM;
+					}
+					zpos += HF_CHUNK_QUAD_COUNT; // HF_VERTEX_STRIDE;
+				} else if (zpos >= HF_CHUNK_QUAD_COUNT) {
+					// Move a chunk forward along z.
+					chunk_z++;
+					if (chunk_z >= HF_BLOCK_CHUNK_DIM) {
+						// Move forward a block;
+						block_z++;
+						if (block_z >= terrain->block_count_z) {
+							// Exceeded bounds, skip.
+							continue;
+						}
+						chunk_z -= HF_BLOCK_CHUNK_DIM;
+					}
+					zpos -= HF_CHUNK_QUAD_COUNT; // HF_VERTEX_STRIDE;
+				}
+
+				// Ensure the correct block and chunk are selected.
+				b = hf_terrain_get_block_at(terrain, block_x, block_z);
+				c = hf_terrain_block_get_chunk_at(b, chunk_x, chunk_z);
+
+				i32 idx = hf_terrain_chunk_get_vert_index_at(c, xpos, zpos);
+				if (idx >= 0) {
+					f32 weighted_amount = center_amount * weight;
+					adjust_terrain_vertex_at(state, terrain, b, c, xpos, zpos, idx, weighted_amount, &chunk_update_count, update_list);
+				}
 			}
 		}
 	}
 
-	// Check if the vertex is shared with the next chunk on the Z axis.
-	{
-		index = -1;
-		if (z == HF_CHUNK_QUAD_COUNT) {
-			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 0, 1, &index);
-		} else if (z == 0) {
-			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 0, -1, &index);
-		}
-
-		if (index >= 0) {
-			hf_terrain_adjust_vertex_at(terrain, index, state->hft_elevation_amount, state->hft_elevation_set_height);
-			if (new_chunk != chunk) {
-				update_list[chunk_update_count] = new_chunk;
-				chunk_update_count++;
-			}
-		}
-	}
-
-	// If in a corner, also need to check if there's a diagonally-opposite shared vertex.
-	{
-		index = -1;
-		// All intercardinal directions need checking.
-		if (x == HF_CHUNK_QUAD_COUNT && z == HF_CHUNK_QUAD_COUNT) {
-			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 1, 1, &index);
-		} else if (x == HF_CHUNK_QUAD_COUNT && z == 0) {
-			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, 1, -1, &index);
-		} else if (x == 0 && z == HF_CHUNK_QUAD_COUNT) {
-			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, -1, 1, &index);
-		} else if (x == 0 && z == 0) {
-			new_chunk = hf_terrain_get_next_vertex_index(terrain, block, chunk, x, z, -1, -1, &index);
-		}
-
-		if (index >= 0) {
-			hf_terrain_adjust_vertex_at(terrain, index, state->hft_elevation_amount, state->hft_elevation_set_height);
-			if (new_chunk != chunk) {
-				update_list[chunk_update_count] = new_chunk;
-				chunk_update_count++;
-			}
-		}
-	}
-
+	// TODO:
 	hf_terrain_recalc_and_update_verts(terrain, update_list, chunk_update_count);
 
 	// FIXME: Should only do this on blocks containing updates.
@@ -2190,56 +2295,36 @@ static b8 editor_on_drag(u16 code, void* sender, void* listener_inst, event_cont
 				state->using_gizmo = false;
 			}
 
-			// TODO: update function
 			// Update inspector position controls.
 			{
 				vec3 position = kscene_get_entity_position(state->edit_scene, state->selection_list[0]);
-				const char* xt = f32_to_string(position.x);
-				kui_textbox_text_set(state->kui_state, state->entity_position_x_textbox, xt);
-				string_free(xt);
-				const char* yt = f32_to_string(position.y);
-				kui_textbox_text_set(state->kui_state, state->entity_position_y_textbox, yt);
-				string_free(yt);
-				const char* zt = f32_to_string(position.z);
-				kui_textbox_text_set(state->kui_state, state->entity_position_z_textbox, zt);
-				string_free(zt);
+				kui_textbox_f32_set(state->kui_state, state->entity_position_x_textbox, position.x);
+				kui_textbox_f32_set(state->kui_state, state->entity_position_y_textbox, position.y);
+				kui_textbox_f32_set(state->kui_state, state->entity_position_z_textbox, position.z);
 			}
 
 			// Update inspector orientation controls.
 			{
 				quat rotation = kscene_get_entity_rotation(state->edit_scene, state->selection_list[0]);
-				const char* x = f32_to_string(rotation.x);
-				kui_textbox_text_set(state->kui_state, state->entity_orientation_x_textbox, x);
-				string_free(x);
-				const char* y = f32_to_string(rotation.y);
-				kui_textbox_text_set(state->kui_state, state->entity_orientation_y_textbox, y);
-				string_free(y);
-				const char* z = f32_to_string(rotation.z);
-				kui_textbox_text_set(state->kui_state, state->entity_orientation_z_textbox, z);
-				string_free(z);
-				const char* w = f32_to_string(rotation.w);
-				kui_textbox_text_set(state->kui_state, state->entity_orientation_w_textbox, w);
-				string_free(w);
+				kui_textbox_f32_set(state->kui_state, state->entity_orientation_x_textbox, rotation.x);
+				kui_textbox_f32_set(state->kui_state, state->entity_orientation_y_textbox, rotation.y);
+				kui_textbox_f32_set(state->kui_state, state->entity_orientation_z_textbox, rotation.z);
+				kui_textbox_f32_set(state->kui_state, state->entity_orientation_w_textbox, rotation.w);
 			}
 
 			// Update inspector scale controls.
 			{
 				vec3 scale = kscene_get_entity_scale(state->edit_scene, state->selection_list[0]);
-				const char* xt = f32_to_string(scale.x);
-				kui_textbox_text_set(state->kui_state, state->entity_scale_x_textbox, xt);
-				string_free(xt);
-				const char* yt = f32_to_string(scale.y);
-				kui_textbox_text_set(state->kui_state, state->entity_scale_y_textbox, yt);
-				string_free(yt);
-				const char* zt = f32_to_string(scale.z);
-				kui_textbox_text_set(state->kui_state, state->entity_scale_z_textbox, zt);
-				string_free(zt);
+				kui_textbox_f32_set(state->kui_state, state->entity_scale_x_textbox, scale.x);
+				kui_textbox_f32_set(state->kui_state, state->entity_scale_y_textbox, scale.y);
+				kui_textbox_f32_set(state->kui_state, state->entity_scale_z_textbox, scale.z);
 			}
 		} else if (state->mode == EDITOR_MODE_HF_TERRAIN) {
 			hf_terrain* terrain = kscene_hf_terrain_get(state->edit_scene);
 
 			i16 x = context.data.i16[0];
 			i16 y = context.data.i16[1];
+			i16 delta_y = context.data.i16[3];
 
 			mat4 view = kcamera_get_view(state->editor_camera);
 			vec3 origin = kcamera_get_position(state->editor_camera);
@@ -2267,13 +2352,14 @@ static b8 editor_on_drag(u16 code, void* sender, void* listener_inst, event_cont
 					u32 tz = 0;
 					hf_vertex_3d* v = hf_terrain_chunk_get_closest_vertex(terrain, &block, &chunk, pos, &tx, &tz, &index);
 
-					hf_terrain_do_elevation(state, pos, normal, &block, &chunk, index, tx, tz, v);
+					hf_terrain_do_elevation(state, pos, normal, &block, &chunk, index, tx, tz, v, delta_y > 0 ? -1 : 1);
 					// HACK: Just the first one for now, add to this once there diameter is working for this.
 					state->debug_point_count = 1;
 					state->debug_points[0].position = v->position;
 					state->debug_points[0].colour = vec4_create(1.0f, 0.0f, 0.0f, 1.0f);
 				} break;
 				case HF_TERRAIN_EDIT_MODE_CHUNK:
+					// NOTE: This mode does nothing on drag.
 					break;
 				case HF_TERRAIN_EDIT_MODE_REMOVE:
 					break;

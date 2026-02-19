@@ -2,7 +2,7 @@
 
 layout(location = 0) in vec4 in_position;
 layout(location = 1) in vec4 in_normal;
-layout(location = 4) in vec4 in_tangent;
+layout(location = 2) in vec4 in_tangent;
 
 #define MAX_CASCADES 4
 

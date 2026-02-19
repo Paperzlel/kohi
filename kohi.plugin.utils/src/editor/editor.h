@@ -191,7 +191,7 @@ typedef struct editor_state {
 
 	// HF Elevation state
 	// Elevation mod amount (negative is down, positive is up)
-	f32 hft_elevation_diameter;
+	u8 hft_elevation_diameter;
 	f32 hft_elevation_amount;
 	b8 hft_elevation_set_height;
 	kui_control hft_elevation_diameter_textbox;

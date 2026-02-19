@@ -569,6 +569,10 @@ ktexture texture_acquire_with_options_sync(ktexture_load_options options) {
 		// Fetch assets.
 		assets = KALLOC_TYPE_CARRAY(kasset_image*, state_ptr->array_sizes[t]);
 		for (u16 i = 0; i < state_ptr->array_sizes[t]; ++i) {
+			if (image_asset_names[i] == INVALID_KNAME) {
+				/* KTRACE("No asset data provided for layer %u, no data will be loaded into that layer.", i); */
+				continue;
+			}
 			const char* asset_name = kname_string_get(image_asset_names[i]);
 			if (package_names[i] != INVALID_KNAME) {
 				assets[i] = asset_system_request_image_from_package_sync(state_ptr->kasset_system, kname_string_get(package_names[i]), asset_name);
@@ -1241,7 +1245,7 @@ static void combine_asset_pixel_data(kasset_image** assets, u32 count, u32 expec
 	for (u16 i = 1; i < count; ++i) {
 		kasset_image* asset = assets[i];
 		if (!asset) {
-			KERROR("No asset at index %u. This layer may not appear correctly.", i);
+			/* KTRACE("No asset at index %u. This layer will just be transparent black pixels.", i); */
 			continue;
 		}
 
@@ -1263,7 +1267,7 @@ static void combine_asset_pixel_data(kasset_image** assets, u32 count, u32 expec
 	for (u16 i = 0; i < count; ++i) {
 		kasset_image* asset = assets[i];
 		if (!asset) {
-			KERROR("No asset at index %u. This layer may not appear correctly.", i);
+			/* KTRACE("No asset at index %u. This layer will just be transparent black pixels.", i); */
 			goto acquire_with_options_sync_asset_continue;
 		}
 

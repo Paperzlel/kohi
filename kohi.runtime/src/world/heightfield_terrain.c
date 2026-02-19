@@ -643,7 +643,6 @@ hf_vertex_3d* hf_terrain_chunk_get_closest_vertex(const hf_terrain* terrain, con
 			v = &terrain->vertices[chunk->vertex_offset + i];
 			shortest_dist = dist;
 			index = (block->index * HF_BLOCK_VERTEX_COUNT) + (chunk->index * HF_CHUNK_VERTEX_COUNT) + i;
-			/* vert = v; */
 			z = i / HF_VERTEX_STRIDE;
 			x = i % HF_VERTEX_STRIDE;
 		}

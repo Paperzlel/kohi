@@ -3423,7 +3423,7 @@ b8 vulkan_renderbuffer_create(renderer_backend_interface* backend, kname name, u
 	krhi_vulkan* rhi = &context->rhi;
 	KASSERT_DEBUG(handle != KRENDERBUFFER_INVALID);
 
-	KTRACE("Creating vulkan renderbuffer: '%s'...", kname_string_get(name));
+	/* KTRACE("Creating vulkan renderbuffer: '%s'...", kname_string_get(name)); */
 
 	u16 len = darray_length(context->renderbuffers);
 	if (handle > (len - 1)) {
@@ -3494,7 +3494,7 @@ b8 vulkan_renderbuffer_create(renderer_backend_interface* backend, kname name, u
 	for (u8 i = 0; i < internal_buffer->handle_count; ++i) {
 
 		VK_CHECK(rhi->kvkCreateBuffer(context->device.logical_device, &buffer_info, context->allocator, &internal_buffer->infos[i].handle));
-		KTRACE("VkBuffer created at %p", internal_buffer->infos[i].handle);
+		/* KTRACE("VkBuffer created at %p", internal_buffer->infos[i].handle); */
 
 		VK_SET_DEBUG_OBJECT_NAME_INDEXED(context, VK_OBJECT_TYPE_BUFFER, internal_buffer->infos[i].handle, kname_string_get(internal_buffer->name), i);
 
@@ -3556,7 +3556,7 @@ void vulkan_renderbuffer_destroy(renderer_backend_interface* backend, krenderbuf
 				rhi->kvkFreeMemory(context->device.logical_device, internal_buffer->infos[i].memory, context->allocator);
 				internal_buffer->infos[i].memory = 0;
 			}
-			KTRACE("VkBuffer destroyed at %p", internal_buffer->infos[i].handle);
+			/* KTRACE("VkBuffer destroyed at %p", internal_buffer->infos[i].handle); */
 			if (internal_buffer->infos[i].handle) {
 				rhi->kvkDestroyBuffer(context->device.logical_device, internal_buffer->infos[i].handle, context->allocator);
 				internal_buffer->infos[i].handle = 0;

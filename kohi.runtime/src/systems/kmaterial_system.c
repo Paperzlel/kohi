@@ -362,7 +362,7 @@ b8 kmaterial_system_acquire(kmaterial_system_state* state, kname name, kmaterial
 	}
 
 	// Material is not yet loaded, request it.
-	KTRACE("Material system - '%s' not yet loaded. Requesting...", kname_string_get(name));
+	/* KTRACE("Material system - '%s' not yet loaded. Requesting...", kname_string_get(name)); */
 
 	// Setup a new handle for the material.
 	kmaterial new_handle = material_handle_create(state, name);
@@ -666,7 +666,7 @@ static kmaterial material_handle_create(kmaterial_system_state* state, kname nam
 		darray_push(state->instances, new_inst_array);
 	}
 
-	KTRACE("Material system - new handle created at index: '%d'.", resource_index);
+	/* KTRACE("Material system - new handle created at index: '%d'.", resource_index); */
 
 	return resource_index;
 }
@@ -695,7 +695,7 @@ static b8 material_create(kmaterial_system_state* state, kmaterial material_hand
 	kmaterial_data* material = &state->materials[material_handle];
 
 	material->index = material_handle;
-	KTRACE("Material system - Creating material at index '%u'...", material_handle);
+	/* KTRACE("Material system - Creating material at index '%u'...", material_handle); */
 
 	// Validate the material type and model.
 	material->type = asset->type;
@@ -1126,7 +1126,7 @@ static b8 material_on_event(u16 code, void* sender, void* listener_inst, event_c
 static u16 material_asset_loaded(kmaterial_system_state* state, kasset_material* asset, kmaterial new_handle, b8 create_instance) {
 	u16 out_instance_id = KMATERIAL_INSTANCE_INVALID;
 	if (asset) {
-		KTRACE("Material system - Resource '%s' loaded. Creating material...", kname_string_get(asset->name));
+		/* KTRACE("Material system - Resource '%s' loaded. Creating material...", kname_string_get(asset->name)); */
 
 		// Create the base material.
 		if (!material_create(state, new_handle, asset)) {
