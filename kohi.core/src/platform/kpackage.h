@@ -53,6 +53,9 @@ KAPI b8 kpackage_create_from_manifest(const asset_manifest* manifest, kpackage* 
 KAPI b8 kpackage_create_from_binary(u64 size, void* bytes, kpackage* out_package);
 KAPI void kpackage_destroy(kpackage* package);
 
+// NOTE: array is dynamically allocated and must be freed by the caller.
+KAPI kname* kpackage_asset_names_by_type(const kpackage* package, kasset_type type, u32* out_count);
+
 KAPI kpackage_result kpackage_asset_bytes_get(const kpackage* package, kname name, u64* out_size, const void** out_data);
 KAPI kpackage_result kpackage_asset_text_get(const kpackage* package, kname name, u64* out_size, const char** out_text);
 

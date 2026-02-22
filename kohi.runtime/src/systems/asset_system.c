@@ -224,6 +224,10 @@ static void vfs_on_binary_asset_loaded_callback(struct vfs_state* vfs, vfs_asset
 	KFREE_TYPE(context, kasset_binary_vfs_context, MEMORY_TAG_ASSET);
 }
 
+kname* asset_system_names_by_type(struct asset_system_state* state, kasset_type type, kname package_name, u32* out_count) {
+	return vfs_asset_names_by_type(state->vfs, type, package_name, out_count);
+}
+
 // async load from game package.
 kasset_binary* asset_system_request_binary(struct asset_system_state* state, const char* name, void* listener, PFN_kasset_binary_loaded_callback callback) {
 	return asset_system_request_binary_from_package(state, state->default_package_name_str, name, listener, callback);

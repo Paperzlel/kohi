@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include "assets/kasset_types.h"
 #include "defines.h"
 #include "strings/kname.h"
 
@@ -121,6 +122,17 @@ KAPI b8 vfs_initialize(u64* memory_requirement, vfs_state* out_state, const vfs_
  * @param state A pointer to the system state.
  */
 KAPI void vfs_shutdown(vfs_state* state);
+
+/**
+ * @brief Returns an array of names of assets for a given asset type.
+ *
+ * @param state A pointer to the system state. Required.
+ * @param type The type of asset to search for. Required.
+ * @param package_name The package to search. Searches all packages if INVALID_KNAME is passed.
+ * @param out_count A pointer to hold the number of results found. Required.
+ * @returns An array of names of assets of the given type if found, or KNULL if none were found.
+ */
+KAPI kname* vfs_asset_names_by_type(vfs_state* state, kasset_type type, kname package_name, u32* out_count);
 
 /**
  * @brief Requests an asset from the VFS, issuing the callback when complete. This call is asynchronous.

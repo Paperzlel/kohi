@@ -116,6 +116,36 @@ void vfs_asset_job_fail(void* result_params) {
 	}
 }
 
+kname* vfs_asset_names_by_type(vfs_state* state, kasset_type type, kname package_name, u32* out_count) {
+	if (!state || !out_count) {
+		return KNULL;
+	}
+
+	kname* results = KNULL;
+	u32 package_count = darray_length(state->packages);
+	kname* names_da = darray_create(kname);
+	for (u32 i = 0; i < package_count; ++i) {
+		kpackage* package = &state->packages[i];
+		if (package_name == INVALID_KNAME || package->name == package_name) {
+			u32 pcount = 0;
+			kname* pnames = kpackage_asset_names_by_type(package, type, &pcount);
+			if (pcount) {
+				// push range; for now just loop...
+				for (u32 p = 0; p < pcount; ++p) {
+					darray_push(names_da, pnames[p]);
+				}
+			}
+		}
+	}
+	*out_count = darray_length(names_da);
+	if (*out_count) {
+		KDUPLICATE_TYPE_CARRAY(results, names_da, kname, *out_count);
+	}
+	darray_destroy(names_da);
+
+	return results;
+}
+
 void vfs_request_asset(vfs_state* state, vfs_request_info info) {
 	if (!state) {
 		KERROR("vfs_request_asset requires state to be provided.");

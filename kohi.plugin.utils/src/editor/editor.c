@@ -633,6 +633,7 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 					string_free(name);
 					KASSERT(kui_system_control_add_child(kui_state, state->hft_general_content_container, state->hft_general_material_albedo_image_boxes[i]));
 					kui_control_position_set(kui_state, state->hft_general_material_albedo_image_boxes[i], (vec3){200, i * (imagebox_size + imagebox_padding), 0});
+					// TODO: onclick texture browser
 				}
 				// Normal
 				{

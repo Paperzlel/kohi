@@ -65,6 +65,8 @@ KAPI void _asset_system_stop_watch(struct asset_system_state* state, u32 watch_i
 #	define asset_system_stop_watch(state, watch_id)
 #endif
 
+KAPI kname* asset_system_names_by_type(struct asset_system_state* state, kasset_type type, kname package_name, u32* out_count);
+
 // ////////////////////////////////////
 // BINARY ASSETS
 // ////////////////////////////////////

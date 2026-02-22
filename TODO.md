@@ -26,6 +26,7 @@ The items in this list are not in any particular order. This list will be update
 
 ## Future Releases
 
+- [ ] Darray "push range" - ability to push multiple entries into array from another array
 - [ ] Editor gizmo needs work when it comes to local translation on top of current/parent rotation Editor gizmo needs work when it comes to local translation on top of current/parent rotations.
 - [ ] Rework freelist to take alignment into account.
   - [ ] Rework renderbuffer to take alignment in during creation, and use said alignment for allocations.

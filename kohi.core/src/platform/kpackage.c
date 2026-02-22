@@ -1,5 +1,6 @@
 #include "kpackage.h"
 
+#include "assets/kasset_utils.h"
 #include "containers/darray.h"
 #include "debug/kassert.h"
 #include "defines.h"
@@ -16,6 +17,7 @@ typedef struct asset_entry {
 	const char* path;
 	// Should be populated if the asset was imported.
 	const char* source_path;
+	kasset_type type;
 
 	// If loaded from binary, these define where the asset is in the blob.
 	u64 offset;
@@ -53,9 +55,10 @@ b8 kpackage_create_from_manifest(const asset_manifest* manifest, kpackage* out_p
 
 		asset_entry new_entry = {0};
 		new_entry.name = asset->name;
+		new_entry.type = asset->type;
 		new_entry.path = string_duplicate(asset->path);
+		new_entry.source_path = string_duplicate(asset->source_path);
 		if (asset->source_path) {
-			new_entry.source_path = string_duplicate(asset->source_path);
 		}
 		// NOTE: Size and offset don't get filled out/used with a manifest version of a package.
 
@@ -102,6 +105,28 @@ void kpackage_destroy(kpackage* package) {
 
 		kzero_memory(package, sizeof(kpackage_internal));
 	}
+}
+
+kname* kpackage_asset_names_by_type(const kpackage* package, kasset_type type, u32* out_count) {
+	u32 entry_count = darray_length(package->internal_data->entries);
+	for (u32 j = 0; j < entry_count; ++j) {
+		asset_entry* entry = &package->internal_data->entries[j];
+		if (entry->type == type) {
+			(*out_count)++;
+		}
+	}
+	kname* results = KNULL;
+	if (*out_count) {
+		results = KALLOC_TYPE_CARRAY(kname, *out_count);
+		u32 idx = 0;
+		for (u32 j = 0; j < entry_count; ++j) {
+			asset_entry* entry = &package->internal_data->entries[j];
+			if (entry->type == type) {
+				results[idx] = entry->name;
+			}
+		}
+	}
+	return results;
 }
 
 static asset_entry* asset_entry_get(const kpackage* package, kname name) {
@@ -452,16 +477,20 @@ b8 kpackage_parse_manifest_file_content(const char* path, asset_manifest* out_ma
 
 				asset_manifest_asset asset = {0};
 				// Asset name.
-				const char* asset_name = 0;
-				if (!kson_object_property_value_get_string(&asset_obj, "name", &asset_name)) {
+				if (!kson_object_property_value_get_string_as_kname(&asset_obj, "name", &asset.name)) {
 					KWARN("Failed to get asset name at array index %u. Skipping.", i);
-					string_free(asset_name);
 					continue;
 				}
-				asset.name = kname_create(asset_name);
-				string_free(asset_name);
+
+				const char* type_str;
+				if (!kson_object_property_value_get_string(&asset_obj, "type", &type_str)) {
+					KWARN("Failed to get asset type at array index %u. Skipping.", i);
+					continue;
+				}
+				asset.type = kasset_type_from_string(type_str);
 
 				// Verify that the asset name doesn't already exist in the manifest.
+				// TODO: This really only needs to be unique per asset type.
 				u32 asset_count = darray_length(out_manifest->assets);
 				for (u32 a = 0; a < asset_count; ++a) {
 					if (out_manifest->assets[a].name == asset.name) {
