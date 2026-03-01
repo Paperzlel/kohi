@@ -210,6 +210,8 @@ void generate_block(hf_terrain* t, kasset_hf_terrain_vertex* asset_vertices, kas
 	KDUPLICATE_TYPE_CARRAY(block->splatmap_pixels, pixels, u8, pixel_array_size);
 	block->splatmap = texture_acquire_from_pixel_data(KPIXEL_FORMAT_RGBA8, pixel_array_size, pixels, HF_TERRAIN_SPLATMAP_RESOLUTION, HF_TERRAIN_SPLATMAP_RESOLUTION, name);
 
+	KFREE_TYPE_CARRAY(pixels, u8, pixel_array_size);
+
 	// Acquire shader resources.
 	block->shader_instance_id = kshader_acquire_binding_set_instance(t->hf_terrain_shader, 1);
 
@@ -367,8 +369,6 @@ hf_terrain hf_terrain_create_from_asset(const kasset_hf_terrain* asset) {
 	t.aabb.max.x = (t.block_count_x * HF_BLOCK_QUAD_COUNT * HF_QUAD_SCALE) * 0.5f;
 	t.aabb.min.z = t.aabb.max.z * -1.0f;
 	t.aabb.min.x = t.aabb.max.x * -1.0f;
-
-	KALLOC_TYPE_CARRAY(hf_block, asset->block_count_x * asset->block_count_z);
 
 	// Each chunk uses the same indices.
 	// Surface indices. Generate 1 set of 6 per tile.

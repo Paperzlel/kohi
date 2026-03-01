@@ -507,9 +507,9 @@ static f32 kui_textbox_calculate_cursor_offset(kui_state* state, u32 string_pos,
 	kui_label_control* typed_label_control = (kui_label_control*)label_base;
 
 	if (typed_label_control->type == FONT_TYPE_BITMAP) {
-		font_system_bitmap_font_measure_string(state->font_system, typed_label_control->bitmap_font, mid_target, &size);
+		font_system_bitmap_font_measure_string(state->font_system, typed_label_control->bitmap_font, mid_target, 0, &size);
 	} else if (typed_label_control->type == FONT_TYPE_SYSTEM) {
-		font_system_system_font_measure_string(state->font_system, typed_label_control->system_font, mid_target, &size);
+		font_system_system_font_measure_string(state->font_system, typed_label_control->system_font, mid_target, 0, &size);
 	} else {
 		KFATAL("hwhat");
 	}

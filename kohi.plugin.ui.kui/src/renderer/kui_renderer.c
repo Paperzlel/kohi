@@ -98,6 +98,7 @@ b8 kui_renderer_render_frame(kui_renderer* renderer, frame_data* p_frame_data, k
 	kshader_apply_binding_set(renderer->kui_pass.kui_shader, 0, render_data->shader_set0_binding_instance_id);
 
 	b8 clip_mask_active = false;
+	u8 stencil_reference_id = 0;
 
 	u32 renderable_count = render_data->renderable_count;
 	for (u32 i = 0; i < renderable_count; ++i) {
@@ -120,7 +121,9 @@ b8 kui_renderer_render_frame(kui_renderer* renderer, frame_data* p_frame_data, k
 			renderer_set_stencil_test_enabled(true);
 			renderer_set_depth_test_enabled(false);
 			renderer_set_depth_write_enabled(false);
-			renderer_set_stencil_reference((u32)renderable->render_data.unique_id);
+			/* renderer_set_stencil_reference((u32)renderable->render_data.unique_id); */
+			renderer_set_stencil_reference((u32)stencil_reference_id);
+			stencil_reference_id++;
 			renderer_set_stencil_write_mask(0xFF);
 			renderer_set_stencil_op(
 				RENDERER_STENCIL_OP_REPLACE,

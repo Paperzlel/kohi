@@ -234,7 +234,7 @@ b8 application_initialize(struct application* app) {
 	// Editor mode keymap
 	editor_setup_keymaps(app->state->editor);
 
-	keymap_binding_add(&app->state->editor->editor_keymap, KEY_C, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, close_editor);
+	keymap_binding_add(&app->state->editor->editor_keymap, KEY_F11, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, close_editor);
 #endif
 
 #ifdef KOHI_DEBUG
@@ -677,7 +677,7 @@ static void setup_keymaps(application* app) {
 	{
 		app->state->world_keymap = keymap_create();
 #if KOHI_EDITOR
-		keymap_binding_add(&app->state->world_keymap, KEY_C, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, open_editor);
+		keymap_binding_add(&app->state->world_keymap, KEY_F11, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, app, open_editor);
 #endif
 
 		keymap_binding_add(&app->state->world_keymap, KEY_A, KEYMAP_BIND_TYPE_HOLD, KEYMAP_MODIFIER_NONE_BIT, app, game_on_yaw);

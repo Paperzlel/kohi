@@ -107,7 +107,7 @@ static system_font_lookup* get_system_font_lookup(font_system_state* state, khan
 static system_font_lookup* get_system_font_lookup_by_name(font_system_state* state, kname font_name, u64* out_resource_index);
 static system_font_variant_data* get_system_font_variant_by_handle(font_system_state* state, system_font_lookup* base_font, khandle variant);
 static system_font_variant_data* get_system_font_variant_by_size(font_system_state* state, system_font_lookup* base_font, u16 size, b8 auto_create, u64* out_resource_index);
-static vec2 measure_string(font_data* font, const char* text);
+static vec2 measure_string(font_data* font, const char* text, f32 max_width);
 static void setup_tab_xadvance(font_data* font);
 static void cleanup_font_data(font_data* font);
 static b8 create_system_font_variant(system_font_lookup* lookup, u16 size, kname font_name, system_font_variant_data* out_variant);
@@ -117,7 +117,7 @@ static void bitmap_font_release(font_system_state* state, bitmap_font_lookup* lo
 static void system_font_release(font_system_state* state, system_font_lookup* lookup);
 static font_glyph* glyph_from_codepoint(const font_data* font, i32 codepoint);
 static font_kerning* kerning_from_codepoints(const font_data* font, i32 codepoint_0, i32 codepoint_1);
-static b8 generate_font_geometry(const font_data* data, font_type type, const char* text, font_geometry* pending_data);
+static b8 generate_font_geometry(const font_data* data, font_type type, const char* text, u32 max_width, b8 truncate, b8 use_ellipsis, font_geometry* out_geometry);
 
 b8 font_system_deserialize_config(const char* config_str, font_system_config* out_config) {
 	if (!config_str || !out_config) {
@@ -417,26 +417,26 @@ b8 font_system_bitmap_font_load(font_system_state* state, kname resource_name, k
 	return true;
 }
 
-b8 font_system_bitmap_font_measure_string(struct font_system_state* state, khandle font, const char* text, vec2* out_size) {
+b8 font_system_bitmap_font_measure_string(struct font_system_state* state, khandle font, const char* text, f32 max_width, vec2* out_size) {
 	if (!out_size) {
-		KERROR("font_system_bitmap_font_measure_string requires a valid pointer to out_size");
+		KERROR("%s requires a valid pointer to out_size", __FUNCTION__);
 		return false;
 	}
 
 	bitmap_font_lookup* base_font = get_bitmap_font_lookup(state, font);
 	if (!base_font) {
-		KERROR("font_system_bitmap_font_measure_string: Unable to find bitmap font. Cannot measure.");
+		KERROR("%s: Unable to find bitmap font. Cannot measure.", __FUNCTION__);
 		return false;
 	}
 
-	*out_size = measure_string(&base_font->data, text);
+	*out_size = measure_string(&base_font->data, text, max_width);
 	return true;
 }
 
 ktexture font_system_bitmap_font_atlas_get(struct font_system_state* state, khandle font) {
 	bitmap_font_lookup* base_font = get_bitmap_font_lookup(state, font);
 	if (!base_font) {
-		KERROR("font_system_bitmap_font_measure_string: Unable to find bitmap font. Cannot measure.");
+		KERROR("%s: Unable to find bitmap font. Cannot measure.", __FUNCTION__);
 		return 0;
 	}
 
@@ -447,20 +447,20 @@ ktexture font_system_bitmap_font_atlas_get(struct font_system_state* state, khan
 f32 font_system_bitmap_font_line_height_get(struct font_system_state* state, khandle font) {
 	bitmap_font_lookup* base_font = get_bitmap_font_lookup(state, font);
 	if (!base_font) {
-		KERROR("font_system_bitmap_font_measure_string: Unable to find bitmap font. Cannot measure.");
+		KERROR("%s: Unable to find bitmap font. Cannot measure.", __FUNCTION__);
 		return 0;
 	}
 
 	return (f32)base_font->data.line_height;
 }
 
-b8 font_system_bitmap_font_generate_geometry(struct font_system_state* state, khandle font, const char* text, font_geometry* out_geometry) {
+b8 font_system_bitmap_font_generate_geometry(struct font_system_state* state, khandle font, const char* text, f32 max_width, b8 truncate, b8 use_ellipsis, font_geometry* out_geometry) {
 	bitmap_font_lookup* base_font = get_bitmap_font_lookup(state, font);
 	if (!base_font) {
 		return false;
 	}
 
-	return generate_font_geometry(&base_font->data, FONT_TYPE_BITMAP, text, out_geometry);
+	return generate_font_geometry(&base_font->data, FONT_TYPE_BITMAP, text, max_width, truncate, use_ellipsis, out_geometry);
 }
 
 b8 font_system_system_font_acquire(font_system_state* state, kname font_name, u16 font_size, system_font_variant* out_variant) {
@@ -602,25 +602,25 @@ b8 font_system_system_font_verify_atlas(font_system_state* state, system_font_va
 	return verify_system_font_size_variant(base_font, v, text);
 }
 
-b8 font_system_system_font_measure_string(struct font_system_state* state, system_font_variant variant, const char* text, vec2* out_size) {
+b8 font_system_system_font_measure_string(struct font_system_state* state, system_font_variant variant, const char* text, f32 max_width, vec2* out_size) {
 	if (!out_size) {
-		KERROR("font_system_system_font_measure_string requires a valid pointer to out_size");
+		KERROR("%s requires a valid pointer to out_size", __FUNCTION__);
 		return false;
 	}
 
 	system_font_lookup* base_font = get_system_font_lookup(state, variant.base_font);
 	if (!base_font) {
-		KERROR("font_system_system_font_measure_string: Unable to find base system font. Cannot measure.");
+		KERROR("%s: Unable to find base system font. Cannot measure.", __FUNCTION__);
 		return false;
 	}
 
 	system_font_variant_data* v = get_system_font_variant_by_handle(state, base_font, variant.variant);
 	if (!v) {
-		KERROR("font_system_system_font_measure_string: Unable to find system font size variant. Cannot verify.");
+		KERROR("%s: Unable to find system font size variant. Cannot verify.", __FUNCTION__);
 		return false;
 	}
 
-	*out_size = measure_string(&v->data, text);
+	*out_size = measure_string(&v->data, text, max_width);
 	return true;
 }
 
@@ -638,7 +638,7 @@ f32 font_system_system_font_line_height_get(struct font_system_state* state, sys
 	return var->data.line_height;
 }
 
-b8 font_system_system_font_generate_geometry(struct font_system_state* state, system_font_variant variant, const char* text, font_geometry* out_geometry) {
+b8 font_system_system_font_generate_geometry(struct font_system_state* state, system_font_variant variant, const char* text, f32 max_width, b8 truncate, b8 use_ellipsis, font_geometry* out_geometry) {
 	system_font_lookup* base_font = get_system_font_lookup(state, variant.base_font);
 	if (!base_font) {
 		return false;
@@ -649,7 +649,7 @@ b8 font_system_system_font_generate_geometry(struct font_system_state* state, sy
 		return false;
 	}
 
-	return generate_font_geometry(&var->data, FONT_TYPE_SYSTEM, text, out_geometry);
+	return generate_font_geometry(&var->data, FONT_TYPE_SYSTEM, text, max_width, truncate, use_ellipsis, out_geometry);
 }
 
 ktexture font_system_system_font_atlas_get(struct font_system_state* state, system_font_variant variant) {
@@ -771,11 +771,118 @@ static system_font_variant_data* get_system_font_variant_by_size(font_system_sta
 	return 0;
 }
 
-static vec2 measure_string(font_data* font, const char* text) {
+static vec2 measure_string(font_data* font, const char* text, f32 max_width) {
 	vec2 extents = {0};
 
 	u32 char_length = string_length(text);
 	u32 text_length_utf8 = string_utf8_length(text);
+
+	u32* wrap_indices = KNULL;
+	if (max_width != 0) {
+		// Pre-scan the string ahead of time and figure out the line break indices.
+		// Line breaks should occur at whitespace characters before a word. Keep a list of these
+		// and break at those indices.
+		wrap_indices = darray_create(u32);
+		f32 x = 0;
+		f32 word_width = 0;
+
+		u32 potential_wrap_index = 0;
+		for (u32 c = 0; c < char_length; ++c) {
+			i32 codepoint = text[c];
+
+			// Continue to next line for newline.
+			if (codepoint == '\n') {
+				x = 0;
+				word_width = 0;
+				continue;
+			}
+
+			if (codepoint == '\t') {
+				x += font->tab_x_advance;
+				potential_wrap_index = c;
+				word_width = 0;
+				continue;
+			}
+			if (codepoint == ' ') {
+				potential_wrap_index = c;
+				word_width = 0;
+			}
+			if (codepoint == '-') {
+				// hyphens can be used to split. Treat as a wrap point too.
+				potential_wrap_index = c;
+				word_width = 0;
+			}
+
+			// NOTE: UTF-8 codepoint handling.
+			u8 advance = 0;
+			if (!bytes_to_codepoint(text, c, &codepoint, &advance)) {
+				KWARN("Invalid UTF-8 found in string, using unknown codepoint of -1");
+				codepoint = -1;
+			}
+
+			font_glyph* g = 0;
+			for (u32 i = 0; i < font->glyph_count; ++i) {
+				if (font->glyphs[i].codepoint == codepoint) {
+					g = &font->glyphs[i];
+					break;
+				}
+			}
+
+			if (!g) {
+				// If not found, use the codepoint -1
+				codepoint = -1;
+				for (u32 i = 0; i < font->glyph_count; ++i) {
+					if (font->glyphs[i].codepoint == codepoint) {
+						g = &font->glyphs[i];
+						break;
+					}
+				}
+			}
+
+			if (g) {
+				// Try to find kerning
+				i32 kerning = 0;
+
+				// Get the offset of the next character. If there is no advance, move forward one,
+				// otherwise use advance as-is.
+				u32 offset = c + advance; //(advance < 1 ? 1 : advance);
+				if (offset < text_length_utf8 - 1) {
+					// Get the next codepoint.
+					i32 next_codepoint = 0;
+					u8 advance_next = 0;
+
+					if (!bytes_to_codepoint(text, offset, &next_codepoint, &advance_next)) {
+						KWARN("Invalid UTF-8 found in string, using unknown codepoint of -1");
+						codepoint = -1;
+					} else {
+						for (u32 i = 0; i < font->kerning_count; ++i) {
+							font_kerning* k = &font->kernings[i];
+							if (k->codepoint_0 == codepoint && k->codepoint_1 == next_codepoint) {
+								kerning = k->amount;
+							}
+						}
+					}
+				}
+
+				f32 actual_width = g->x_advance + kerning;
+				x += actual_width;
+				word_width += actual_width;
+
+				if (max_width > 0 && x > max_width) {
+					// Wrap to the next line, track the wrap index, and resume the next line at word_width.
+					darray_push(wrap_indices, potential_wrap_index);
+					x = word_width;
+					// NOTE: This won't account for really long word that need to be cut.
+				}
+			} else {
+				KERROR("Unable to find unknown codepoint. Skipping.");
+				continue;
+			}
+
+			// Now advance c
+			c += advance - 1; // Subtracting 1 because the loop always increments once for single-byte anyway.
+		}
+	}
 
 	f32 x = 0;
 	f32 y = 0;
@@ -797,6 +904,22 @@ static vec2 measure_string(font_data* font, const char* text) {
 		if (codepoint == '\t') {
 			x += font->tab_x_advance;
 			continue;
+		}
+
+		u32 len = darray_length(wrap_indices);
+		for (u32 i = 0; i < len; ++i) {
+			if (wrap_indices[i] == c) {
+				// Wrap.
+				if (x > extents.x) {
+					extents.x = x;
+				}
+				x = 0;
+				y += font->line_height;
+				if (codepoint != '-') {
+					// Only continue to render a hyphen, as whitespace chars do not need rendering.
+					continue;
+				}
+			}
 		}
 
 		// NOTE: UTF-8 codepoint handling.
@@ -868,6 +991,8 @@ static vec2 measure_string(font_data* font, const char* text) {
 	// Since y starts 0-based, we need to add one more to make it 1-line based.
 	y += font->line_height;
 	extents.y = y;
+
+	darray_destroy(wrap_indices);
 
 	return extents;
 }
@@ -1002,7 +1127,7 @@ static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, system_f
 	}
 
 	// Write texture data to atlas.
-	if (!renderer_texture_write_data(engine_systems_get()->renderer_system, variant->atlas, 32, 0, 0, 0, variant->data.atlas_size_x, variant->data.atlas_size_y, 1, rgba_pixels)) {
+	if (!renderer_texture_write_data(engine_systems_get()->renderer_system, variant->atlas, 32, 0, 0, 0, variant->data.atlas_size_x, variant->data.atlas_size_y, rgba_pixels)) {
 		KERROR("Failed to write data to system font variant texture");
 		return false;
 	}
@@ -1160,7 +1285,7 @@ static font_glyph* glyph_from_codepoint(const font_data* font, i32 codepoint) {
 		}
 	}
 
-	KERROR("Unable to find font glyph for codepoint: %s", codepoint);
+	// KERROR("Unable to find font glyph for codepoint: %i", codepoint);
 	return 0;
 }
 
@@ -1176,7 +1301,7 @@ static font_kerning* kerning_from_codepoints(const font_data* font, i32 codepoin
 	return 0;
 }
 
-static b8 generate_font_geometry(const font_data* data, font_type type, const char* text, font_geometry* out_geometry) {
+static b8 generate_font_geometry(const font_data* data, font_type type, const char* text, u32 max_width, b8 truncate, b8 use_ellipsis, font_geometry* out_geometry) {
 
 	// Get the UTF-8 string length
 	u32 text_length_utf8 = string_utf8_length(text);
@@ -1224,12 +1349,142 @@ static b8 generate_font_geometry(const font_data* data, font_type type, const ch
 	out_geometry->vertex_buffer_data = kallocate(out_geometry->vertex_buffer_size, MEMORY_TAG_ARRAY);
 	out_geometry->index_buffer_data = kallocate(out_geometry->index_buffer_size, MEMORY_TAG_ARRAY);
 
+	u32* wrap_indices = KNULL;
+	if (max_width != 0 && !truncate) {
+		// Pre-scan the string ahead of time and figure out the line break indices.
+		// Line breaks should occur at whitespace characters before a word. Keep a list of these
+		// and break at those indices.
+		wrap_indices = darray_create(u32);
+		f32 x = 0;
+		f32 word_width = 0;
+
+		u32 potential_wrap_index = 0;
+		for (u32 c = 0; c < char_length; ++c) {
+			i32 codepoint = text[c];
+
+			// Continue to next line for newline.
+			if (codepoint == '\n') {
+				x = 0;
+				word_width = 0;
+				continue;
+			}
+
+			if (codepoint == '\t') {
+				x += data->tab_x_advance;
+				potential_wrap_index = c;
+				word_width = 0;
+				continue;
+			}
+			if (codepoint == ' ') {
+				potential_wrap_index = c;
+				word_width = 0;
+			}
+			if (codepoint == '-') {
+				// hyphens can be used to split. Treat as a wrap point too.
+				potential_wrap_index = c;
+				word_width = 0;
+			}
+
+			// NOTE: UTF-8 codepoint handling.
+			u8 advance = 0;
+			if (!bytes_to_codepoint(text, c, &codepoint, &advance)) {
+				KWARN("Invalid UTF-8 found in string, using unknown codepoint of -1");
+				codepoint = -1;
+			}
+
+			font_glyph* g = 0;
+			for (u32 i = 0; i < data->glyph_count; ++i) {
+				if (data->glyphs[i].codepoint == codepoint) {
+					g = &data->glyphs[i];
+					break;
+				}
+			}
+
+			if (!g) {
+				// If not found, use the codepoint -1
+				codepoint = -1;
+				for (u32 i = 0; i < data->glyph_count; ++i) {
+					if (data->glyphs[i].codepoint == codepoint) {
+						g = &data->glyphs[i];
+						break;
+					}
+				}
+			}
+
+			if (g) {
+				// Try to find kerning
+				i32 kerning = 0;
+
+				// Get the offset of the next character. If there is no advance, move forward one,
+				// otherwise use advance as-is.
+				u32 offset = c + advance; //(advance < 1 ? 1 : advance);
+				if (offset < text_length_utf8 - 1) {
+					// Get the next codepoint.
+					i32 next_codepoint = 0;
+					u8 advance_next = 0;
+
+					if (!bytes_to_codepoint(text, offset, &next_codepoint, &advance_next)) {
+						KWARN("Invalid UTF-8 found in string, using unknown codepoint of -1");
+						codepoint = -1;
+					} else {
+						for (u32 i = 0; i < data->kerning_count; ++i) {
+							font_kerning* k = &data->kernings[i];
+							if (k->codepoint_0 == codepoint && k->codepoint_1 == next_codepoint) {
+								kerning = k->amount;
+							}
+						}
+					}
+				}
+
+				f32 actual_width = g->x_advance + kerning;
+				x += actual_width;
+				word_width += actual_width;
+
+				if (max_width > 0 && x > max_width) {
+					// Wrap to the next line, track the wrap index, and resume the next line at word_width.
+					darray_push(wrap_indices, potential_wrap_index);
+					x = word_width;
+					// NOTE: This won't account for really long word that need to be cut.
+				}
+			} else {
+				KERROR("Unable to find unknown codepoint. Skipping.");
+				continue;
+			}
+
+			// Now advance c
+			c += advance - 1; // Subtracting 1 because the loop always increments once for single-byte anyway.
+		}
+	}
+
 	// Generate new geometry for each character.
 	f32 x = 0;
 	f32 y = data->line_height;
 
+	f32 ellipsis_width = 0;
+	font_glyph* ellipsis_glyph = KNULL;
+	b8 use_3_dots = false;
+	if (use_ellipsis) {
+		const char* ellipsis = "\u2026";
+		ellipsis_glyph = glyph_from_codepoint(data, ellipsis[0]);
+		if (ellipsis_glyph) {
+			ellipsis_width = ellipsis_glyph->width;
+		} else {
+			// Need to use 3 dots as this font's data doesn't have an ellipsis.
+			use_3_dots = true;
+			ellipsis_glyph = glyph_from_codepoint(data, '.');
+			if (!ellipsis_glyph) {
+				// give up and treat as plain truncation.
+				use_ellipsis = false;
+				use_3_dots = false;
+			} else {
+				ellipsis_width = ellipsis_glyph->width * 3;
+			}
+		}
+	}
+
 	// Iterate the codepoints list.
-	for (u32 c = 0, q_idx = 0; c < text_length_utf8; ++c) {
+	u32 q_idx = 0;
+	for (u32 c = 0; c < text_length_utf8; ++c) {
 		i32 codepoint = codepoints[c];
 
 		// Whitespace doesn't get a quad created for it.
@@ -1244,6 +1499,19 @@ static b8 generate_font_geometry(const font_data* data, font_type type, const ch
 			x += data->tab_x_advance;
 			// No further processing needed.
 			continue;
+		}
+
+		u32 len = darray_length(wrap_indices);
+		for (u32 i = 0; i < len; ++i) {
+			if (wrap_indices[i] == c) {
+				// Wrap.
+				x = 0;
+				y += data->line_height;
+				if (codepoint != '-') {
+					// Only continue to render a hyphen, as whitespace chars do not need rendering.
+					continue;
+				}
+			}
 		}
 
 		// Obtain the glyph.
@@ -1264,54 +1532,97 @@ static b8 generate_font_geometry(const font_data* data, font_type type, const ch
 			}
 		}
 
+		f32 advance_amount = g->x_advance + kerning_amount;
+
 		// Only generate a quad for non-whitespace characters.
 		if (!codepoint_is_whitespace(codepoint)) {
-			// Generate points for the quad.
-			f32 minx = x + g->x_offset;
-			f32 miny = y + g->y_offset;
-			f32 maxx = minx + g->width;
-			f32 maxy = miny + g->height;
-			f32 tminx = (f32)g->x / data->atlas_size_x;
-			f32 tmaxx = (f32)(g->x + g->width) / data->atlas_size_x;
-			f32 tminy = (f32)g->y / data->atlas_size_y;
-			f32 tmaxy = (f32)(g->y + g->height) / data->atlas_size_y;
-			// Flip the y axis for system text
-			if (type == FONT_TYPE_SYSTEM) {
-				tminy = 1.0f - tminy;
-				tmaxy = 1.0f - tmaxy;
+
+			b8 truncate_here = false;
+			u8 repeat = 1;
+			if (truncate) {
+				f32 width = x + advance_amount;
+				if (use_ellipsis) {
+					width += ellipsis_width;
+				}
+				if (width > max_width) {
+					// If the bounds will be exceeded by adding this character, don't. Truncate it.
+					truncate_here = true;
+					if (!use_ellipsis) {
+						// If not using an ellipsis, just stop here.
+						break;
+					}
+				}
 			}
 
-			vertex_2d p0 = (vertex_2d){vec2_create(minx, miny), vec2_create(tminx, tminy)};
-			vertex_2d p1 = (vertex_2d){vec2_create(maxx, miny), vec2_create(tmaxx, tminy)};
-			vertex_2d p2 = (vertex_2d){vec2_create(maxx, maxy), vec2_create(tmaxx, tmaxy)};
-			vertex_2d p3 = (vertex_2d){vec2_create(minx, maxy), vec2_create(tminx, tmaxy)};
+			if (truncate_here && use_ellipsis) {
+				// Use the ellipsis glyph here instead.
+				g = ellipsis_glyph;
+				advance_amount = g->x_advance + kerning_amount;
+				if (use_3_dots) {
+					repeat = 3;
+				}
+			}
 
-			// Vertex data
-			out_geometry->vertex_buffer_data[(q_idx * 4) + 0] = p0; // 0    3
-			out_geometry->vertex_buffer_data[(q_idx * 4) + 1] = p2; //
-			out_geometry->vertex_buffer_data[(q_idx * 4) + 2] = p3; //
-			out_geometry->vertex_buffer_data[(q_idx * 4) + 3] = p1; // 2    1
+			for (u8 r = 0; r < repeat && q_idx < out_geometry->quad_count; ++r) {
+				// Generate points for the quad.
+				f32 minx = x + g->x_offset;
+				f32 miny = y + g->y_offset;
+				f32 maxx = minx + g->width;
+				f32 maxy = miny + g->height;
+				f32 tminx = (f32)g->x / data->atlas_size_x;
+				f32 tmaxx = (f32)(g->x + g->width) / data->atlas_size_x;
+				f32 tminy = (f32)g->y / data->atlas_size_y;
+				f32 tmaxy = (f32)(g->y + g->height) / data->atlas_size_y;
+				// Flip the y axis for system text
+				if (type == FONT_TYPE_SYSTEM) {
+					tminy = 1.0f - tminy;
+					tmaxy = 1.0f - tmaxy;
+				}
 
-			// Index data 210301
-			out_geometry->index_buffer_data[(q_idx * 6) + 0] = (q_idx * 4) + 2;
-			out_geometry->index_buffer_data[(q_idx * 6) + 1] = (q_idx * 4) + 1;
-			out_geometry->index_buffer_data[(q_idx * 6) + 2] = (q_idx * 4) + 0;
-			out_geometry->index_buffer_data[(q_idx * 6) + 3] = (q_idx * 4) + 3;
-			out_geometry->index_buffer_data[(q_idx * 6) + 4] = (q_idx * 4) + 0;
-			out_geometry->index_buffer_data[(q_idx * 6) + 5] = (q_idx * 4) + 1;
+				vertex_2d p0 = (vertex_2d){vec2_create(minx, miny), vec2_create(tminx, tminy)};
+				vertex_2d p1 = (vertex_2d){vec2_create(maxx, miny), vec2_create(tmaxx, tminy)};
+				vertex_2d p2 = (vertex_2d){vec2_create(maxx, maxy), vec2_create(tmaxx, tmaxy)};
+				vertex_2d p3 = (vertex_2d){vec2_create(minx, maxy), vec2_create(tminx, tmaxy)};
 
-			// Increment quad index.
-			q_idx++;
+				// Vertex data
+				out_geometry->vertex_buffer_data[(q_idx * 4) + 0] = p0; // 0    3
+				out_geometry->vertex_buffer_data[(q_idx * 4) + 1] = p2; //
+				out_geometry->vertex_buffer_data[(q_idx * 4) + 2] = p3; //
+				out_geometry->vertex_buffer_data[(q_idx * 4) + 3] = p1; // 2    1
+
+				// Index data 210301
+				out_geometry->index_buffer_data[(q_idx * 6) + 0] = (q_idx * 4) + 2;
+				out_geometry->index_buffer_data[(q_idx * 6) + 1] = (q_idx * 4) + 1;
+				out_geometry->index_buffer_data[(q_idx * 6) + 2] = (q_idx * 4) + 0;
+				out_geometry->index_buffer_data[(q_idx * 6) + 3] = (q_idx * 4) + 3;
+				out_geometry->index_buffer_data[(q_idx * 6) + 4] = (q_idx * 4) + 0;
+				out_geometry->index_buffer_data[(q_idx * 6) + 5] = (q_idx * 4) + 1;
+
+				// Increment quad index.
+				q_idx++;
+
+				// Advance once per repeat, the glyph's advance and kerning.
+				x += advance_amount;
+			}
+
+			if (truncate_here) {
+				break;
+			}
+		} else {
+			// Advance once by the glyph's advance and kerning.
+			x += advance_amount;
 		}
-
-		// Advance by the glyph's advance and kerning.
-		x += g->x_advance + kerning_amount;
 	}
+
+	// Number of quads to actually be drawn.
+	out_geometry->render_quad_count = q_idx;
 
 	// Clean up.
 	if (codepoints) {
 		kfree(codepoints, sizeof(i32) * text_length_utf8, MEMORY_TAG_ARRAY);
 	}
+
+	darray_destroy(wrap_indices);
 
 	return true;
 }

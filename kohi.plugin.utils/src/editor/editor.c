@@ -139,6 +139,9 @@ static void hf_terrain_checkbox_check_changed(struct kui_state* state, kui_contr
 static void hf_terrain_erase_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static void hf_terrain_set_height_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 
+static void tex_browser_refresh(editor_state* state);
+static void tex_browser_search_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
+
 b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 	*memory_requirement = sizeof(editor_state);
 	if (!state) {
@@ -822,23 +825,13 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 
 	// Texture browser
 	{
-		/* kui_control tex_browser_bg_panel;
-		kui_control tex_browser_title;
-		vec2i tex_browser_min_size;
-		f32 tex_browser_right_col_x;
-		kui_control tex_browser_scrollable_control;
-		kui_control tex_browser_content_container;
-		u32 tex_browser_tex_count;
-		kui_control* tex_browser_image_boxes;
-		kui_control* tex_browser_labels; */
-
 		// Texture listing
-		state->imagebox_size = 64;
+		state->imagebox_size = 128;
 		state->imagebox_padding = 5.0f;
 
 		// Texture browser background/window
-		state->tex_browser_window_size = vec2_create(600, 300);
-		state->tex_browser_right_col_x = 200.0f;
+		state->tex_browser_window_size = vec2_create(1400, 900);
+		state->tex_browser_right_col_x = 1100.0f;
 		state->tex_browser_bg_panel = kui_panel_control_create(kui_state, "tex_browser_bg_panel", state->tex_browser_window_size, (vec4){0, 0, 0, 0.8f});
 		KASSERT(kui_system_control_add_child(kui_state, state->editor_root, state->tex_browser_bg_panel));
 		kui_control_position_set(kui_state, state->tex_browser_bg_panel, (vec3){300, 50, 0});
@@ -848,12 +841,26 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_title));
 		kui_control_position_set(kui_state, state->tex_browser_title, (vec3){10, -5.0f, 0});
 
+		// Search Label
+		state->tex_browser_search_label = kui_label_control_create(kui_state, "tex_browser_search_label", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Search");
+		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_search_label));
+		kui_control_position_set(kui_state, state->tex_browser_search_label, (vec3){10, 45.0f, 0});
+
+		// Search textbox.
+		state->tex_browser_search_textbox = kui_textbox_control_create(kui_state, "tex_browser_search_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "", KUI_TEXTBOX_TYPE_STRING);
+		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_search_textbox));
+		kui_control_position_set(kui_state, state->tex_browser_search_textbox, (vec3){100, 50, 0});
+		KASSERT(kui_textbox_control_width_set(kui_state, state->tex_browser_search_textbox, 1000.0f));
+		kui_control_set_user_data(kui_state, state->tex_browser_search_textbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
+		kui_control_set_on_key(kui_state, state->tex_browser_search_textbox, tex_browser_search_textbox_on_key);
+
 		// Scrollable content control
-		f32 scrollable_width = state->tex_browser_window_size.x - state->tex_browser_right_col_x;
+		f32 inspector_width = state->tex_browser_window_size.x - state->tex_browser_right_col_x;
+		f32 scrollable_width = state->tex_browser_window_size.x - inspector_width;
 		state->tex_browser_scrollable_control = kui_scrollable_control_create(kui_state, "tex_browser_scrollable_control", (vec2){scrollable_width, 100}, false, true);
 		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_scrollable_control));
-		kui_control_position_set(kui_state, state->tex_browser_scrollable_control, (vec3){0, 50, 0});
-		kui_scrollable_control_resize(state->kui_state, state->tex_browser_scrollable_control, (vec2){scrollable_width, 250});
+		kui_control_position_set(kui_state, state->tex_browser_scrollable_control, (vec3){10, 100, 0});
+		kui_scrollable_control_resize(state->kui_state, state->tex_browser_scrollable_control, (vec2){scrollable_width, state->tex_browser_window_size.y - 150});
 
 		state->tex_browser_content_container = kui_scrollable_control_get_content_container(state->kui_state, state->tex_browser_scrollable_control);
 
@@ -861,54 +868,7 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state) {
 			state->imagebox_size + state->imagebox_padding,
 			state->imagebox_size + state->imagebox_padding + state->font_size + state->imagebox_padding);
 
-		// Query for a list of textures.
-		kname* texture_names = asset_system_names_by_type(engine_systems_get()->asset_state, KASSET_TYPE_IMAGE, INVALID_KNAME, &state->tex_browser_tex_count);
-		state->tex_browser_image_boxes = KALLOC_TYPE_CARRAY(kui_control, state->tex_browser_tex_count);
-		state->tex_browser_labels = KALLOC_TYPE_CARRAY(kui_control, state->tex_browser_tex_count);
-
-		u32 x = 0;
-		u32 y = 0;
-
-		for (u32 i = 0; i < state->tex_browser_tex_count; ++i) {
-			// Image box
-			{
-				char* name = string_format("__texture_browser_image_box_%u__", i);
-				state->tex_browser_image_boxes[i] = kui_image_box_control_create(state->kui_state, name, (vec2i){state->imagebox_size, state->imagebox_size});
-				string_free(name);
-				KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_content_container, state->tex_browser_image_boxes[i]));
-				if (!kui_image_box_control_texture_set_by_name(kui_state, state->tex_browser_image_boxes[i], texture_names[i], INVALID_KNAME)) {
-					KERROR("Image not loaded, ya dingus!");
-				}
-				// TODO: onclick select and show metadata
-				// TODO: doubleclick selects and returns if in "selection mode"
-			}
-			// Label
-			{
-				char* name = string_format("__texture_browser_image_label_%u__", i);
-				state->tex_browser_labels[i] = kui_label_control_create(state->kui_state, name, FONT_TYPE_SYSTEM, state->font_name, state->font_size, kname_string_get(texture_names[i]));
-				string_free(name);
-				KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_content_container, state->tex_browser_labels[i]));
-			}
-
-			// positioning
-			b8 has_space = (state->tex_tile_size.x * (x + 1)) <= scrollable_width;
-			if (!has_space) {
-				x = 0;
-				y++;
-			}
-
-			vec3 pos = (vec3){state->tex_tile_size.x * x, state->tex_tile_size.y * y, 0};
-			kui_control_position_set(kui_state, state->tex_browser_image_boxes[i], pos);
-			kui_control_position_set(kui_state, state->tex_browser_labels[i], vec3_sub(pos, vec3_create(0, state->font_size + state->imagebox_padding, 0)));
-
-			if (has_space) {
-				++x;
-			}
-		}
-
-		f32 scrollable_height = state->tex_tile_size.y * (y + 1);
-
-		kui_scrollable_set_content_size(state->kui_state, state->tex_browser_scrollable_control, scrollable_width, scrollable_height);
+		/* tex_browser_refresh(state); */
 	}
 	state->is_running = true;
 
@@ -929,6 +889,13 @@ void editor_shutdown(struct editor_state* state) {
 	state->selection_list = KNULL;
 
 	tree_clear(state);
+
+	if (state->tex_browser_image_boxes) {
+		KFREE_TYPE_CARRAY(state->tex_browser_image_boxes, kui_control, state->tex_browser_tex_count);
+	}
+	if (state->tex_browser_labels) {
+		KFREE_TYPE_CARRAY(state->tex_browser_labels, kui_control, state->tex_browser_tex_count);
+	}
 
 	if (state->edit_scene) {
 		kscene_destroy(state->edit_scene);
@@ -1000,6 +967,7 @@ b8 editor_open(struct editor_state* state, kname scene_name, kname scene_package
 			kui_image_box_control_texture_set_by_name(state->kui_state, state->hft_general_material_mra_image_boxes[i], asset_name, package_name);
 		}
 	}
+	KFREE_TYPE_CARRAY(materials, hf_terrain_material_data, material_count);
 
 	// If opened successfully, change keymaps.
 	if (!input_keymap_pop()) {
@@ -1019,6 +987,9 @@ b8 editor_open(struct editor_state* state, kname scene_name, kname scene_package
 	// Set the default mode.
 	editor_set_mode(state, EDITOR_MODE_SCENE);
 
+	// HACK: This should be done when the texture browser opens.
+	tex_browser_refresh(state);
+
 	return true;
 }
 
@@ -1026,6 +997,7 @@ b8 editor_close(struct editor_state* state) {
 	// TODO: dirty check. If dirty, return false here. May need some sort of callback to
 	// allow a "this is saved, now we can close" function.
 
+	renderer_wait_for_idle();
 	KTRACE("Destroying editor scene...");
 	// Unload the current zone's scene from the world.
 	kscene_destroy(state->edit_scene);
@@ -1404,7 +1376,8 @@ void editor_on_window_resize(struct editor_state* state, const struct kwindow* w
 
 	u32 x = 0;
 	u32 y = 0;
-	f32 scrollable_width = state->tex_browser_window_size.x - state->tex_browser_right_col_x;
+	f32 inspector_width = state->tex_browser_window_size.x - state->tex_browser_right_col_x;
+	f32 scrollable_width = state->tex_browser_window_size.x - inspector_width;
 
 	for (u32 i = 0; i < state->tex_browser_tex_count; ++i) {
 
@@ -2173,7 +2146,7 @@ static void hf_terrain_paint(editor_state* state, vec3 pos, vec3 normal, const h
 		}
 	}
 
-	texture_write_data(block->splatmap, 32, min_x, min_z, 0, width, height, 1, new_colour);
+	texture_write_data(block->splatmap, 32, min_x, min_z, 0, width, height, new_colour);
 
 	KFREE_TYPE_CARRAY(new_colour, u8, total_px * 4);
 }
@@ -3442,6 +3415,131 @@ static void hft_paint_material_index_textbox_on_key(kui_state* state, kui_contro
 					editor->hft_paint_material_index = (u8)KCLAMP((u8)x, 0, HF_TERRAIN_CHUNK_MAX_MATERIALS - 2);
 				}
 			}
+		}
+	}
+}
+
+static void tex_browser_refresh(editor_state* state) {
+	kui_state* kui_state = state->kui_state;
+
+	f32 inspector_width = state->tex_browser_window_size.x - state->tex_browser_right_col_x;
+	f32 scrollable_width = state->tex_browser_window_size.x - inspector_width - 5.0f;
+
+	// Clear the old controls first.
+	if (state->tex_browser_tex_count) {
+		kui_control_destroy_all_children(state->kui_state, state->tex_browser_content_container);
+		/* for (u32 i = 0; i < state->tex_browser_tex_count; ++i) {
+			kui_image_box_control_destroy(kui_state, &state->tex_browser_image_boxes[i]);
+			kui_label_control_destroy(kui_state, &state->tex_browser_labels[i]);
+		} */
+		KFREE_TYPE_CARRAY(state->tex_browser_image_boxes, kui_control, state->tex_browser_tex_count);
+		state->tex_browser_image_boxes = KNULL;
+		KFREE_TYPE_CARRAY(state->tex_browser_labels, kui_control, state->tex_browser_tex_count);
+		state->tex_browser_labels = KNULL;
+	}
+
+	// Query for a list of textures.
+	kname* texture_names = asset_system_names_by_type(engine_systems_get()->asset_state, KASSET_TYPE_IMAGE, INVALID_KNAME, &state->tex_browser_tex_count);
+
+	if (texture_names && state->tex_browser_search_text && string_length(state->tex_browser_search_text)) {
+		kname* search_names = darray_create(kname);
+		for (u32 i = 0; i < state->tex_browser_tex_count; ++i) {
+			if (string_index_of_str(kname_string_get(texture_names[i]), state->tex_browser_search_text) != -1) {
+				darray_push(search_names, texture_names[i]);
+			}
+		}
+		KFREE_TYPE_CARRAY(texture_names, kname, state->tex_browser_tex_count);
+		texture_names = KNULL;
+		state->tex_browser_tex_count = darray_length(search_names);
+		if (state->tex_browser_tex_count) {
+			KDUPLICATE_TYPE_CARRAY(texture_names, search_names, kname, state->tex_browser_tex_count);
+			darray_destroy(search_names);
+		}
+	}
+
+	u32 x = 0;
+	u32 y = 0;
+
+	if (state->tex_browser_tex_count) {
+		state->tex_browser_image_boxes = KALLOC_TYPE_CARRAY(kui_control, state->tex_browser_tex_count);
+		state->tex_browser_labels = KALLOC_TYPE_CARRAY(kui_control, state->tex_browser_tex_count);
+
+		for (u32 i = 0; i < state->tex_browser_tex_count; ++i) {
+			// Image box
+			{
+				char* name = string_format("__texture_browser_image_box_%u__", i);
+				state->tex_browser_image_boxes[i] = kui_image_box_control_create(state->kui_state, name, (vec2i){state->imagebox_size, state->imagebox_size});
+				string_free(name);
+				KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_content_container, state->tex_browser_image_boxes[i]));
+				if (!kui_image_box_control_texture_set_by_name(kui_state, state->tex_browser_image_boxes[i], texture_names[i], INVALID_KNAME)) {
+					KERROR("Image not loaded, ya dingus!");
+				}
+				// TODO: onclick select and show metadata
+				// TODO: doubleclick selects and returns if in "selection mode"
+			}
+			// Label
+			{
+				char* name = string_format("__texture_browser_image_label_%u__", i);
+				state->tex_browser_labels[i] = kui_label_control_create_ex(
+					state->kui_state,
+					name,
+					FONT_TYPE_SYSTEM,
+					state->font_name,
+					state->font_size,
+					kname_string_get(texture_names[i]),
+					state->imagebox_size,
+					KUI_LABEL_FLAG_TRUNCATE_ELLIPSIS_BIT);
+				string_free(name);
+				KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_content_container, state->tex_browser_labels[i]));
+			}
+
+			// positioning
+			b8 has_space = (state->tex_tile_size.x * (x + 1)) <= scrollable_width;
+			if (!has_space) {
+				x = 0;
+				y++;
+			}
+
+			vec3 image_pos = (vec3){state->tex_tile_size.x * x, state->tex_tile_size.y * y, 0};
+			vec3 label_pos = vec3_add(image_pos, vec3_create(0, state->imagebox_size, 0));
+			kui_control_position_set(kui_state, state->tex_browser_image_boxes[i], image_pos);
+			kui_control_position_set(kui_state, state->tex_browser_labels[i], label_pos);
+
+			++x;
+		}
+	}
+
+	f32 scrollable_height = state->tex_tile_size.y * (y + 1);
+
+	kui_scrollable_set_content_size(state->kui_state, state->tex_browser_scrollable_control, scrollable_width, scrollable_height);
+	// Scroll to the top left
+	/* kui_scrollable_control_scroll_y_set(state->kui_state, state->tex_browser_scrollable_control, 0); */
+	/* kui_scrollable_control_scroll_x_set(state->kui_state, state->tex_browser_scrollable_control, 0); */
+
+	if (texture_names) {
+		KFREE_TYPE_CARRAY(texture_names, kname, state->tex_browser_tex_count);
+	}
+}
+
+static void tex_browser_search_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt) {
+	if (evt.type == KUI_KEYBOARD_EVENT_TYPE_PRESS) {
+		u16 key_code = evt.key;
+
+		editor_state* editor = kui_control_get_user_data(state, self);
+
+		if (key_code == KEY_ENTER) {
+			// Clear current search text.
+			string_free(editor->tex_browser_search_text);
+			editor->tex_browser_search_text = KNULL;
+
+			// Only search on enter press.
+			const char* entry_control_text = kui_textbox_text_get(state, self);
+			u32 len = string_length(entry_control_text);
+			if (len > 0) {
+				KTRACE("Searching for textures based on '%s'...", entry_control_text);
+				editor->tex_browser_search_text = string_duplicate(entry_control_text);
+			}
+			tex_browser_refresh(editor);
 		}
 	}
 }

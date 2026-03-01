@@ -100,17 +100,24 @@ b8 vulkan_image_mipmaps_generate(
 /**
  * @brief Copies data in buffer to provided image.
  * @param context The Vulkan context.
- * @param image The image to copy the buffer's data to.
+ * @param image A pointer to the image to copy the buffer's data to.
  * @param buffer The buffer whose data will be copied.
- * @param offset The offset in bytes from the beginning of the buffer.
+ * @param buffer_offset The offset in bytes from the beginning of the buffer.
+ * @param px_x The pixel position on the x axis. Must be nonzero.
+ * @param px_y The pixel position on the y axis. Must be nonzero.
+ * @param layer The layer index. Pass -1 to set data on all layers. NOTE: only do this if writing the entire extent of the image!
+ * @param width The width in pixels of the area to write.
+ * @param height The height in pixels of the area to write.
  * @param command_buffer A pointer to the command buffer to be used for this operation.
  */
 void vulkan_image_copy_from_buffer(
 	vulkan_context* context,
 	vulkan_image* image,
 	VkBuffer buffer,
+	u64 buffer_size,
 	u64 buffer_offset,
-	u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth,
+	u32 px_x, u32 px_y, i32 layer,
+	u32 width, u32 height,
 	vulkan_command_buffer* command_buffer);
 
 /**

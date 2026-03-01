@@ -526,37 +526,74 @@ void vulkan_image_copy_from_buffer(
 	vulkan_context* context,
 	vulkan_image* image,
 	VkBuffer buffer,
+	u64 buffer_size,
 	u64 buffer_offset,
-	u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth,
+	u32 px_x, u32 px_y, i32 layer,
+	u32 width, u32 height,
 	vulkan_command_buffer* command_buffer) {
 	//
 	krhi_vulkan* rhi = &context->rhi;
-	VkBufferImageCopy region;
-	kzero_memory(&region, sizeof(VkBufferImageCopy));
-	region.bufferOffset = buffer_offset;
-	region.bufferRowLength = 0;
-	region.bufferImageHeight = 0;
+	VkBufferImageCopy region = {0};
+	VkBufferImageCopy* regions = KNULL;
 
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.mipLevel = 0;
-	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount = image->layer_count;
+	u32 write_count = 0;
+	if (image->layer_count == 1) {
+		write_count = 1;
+		region.bufferOffset = buffer_offset;
+		region.bufferRowLength = 0;
+		region.bufferImageHeight = 0;
 
-	region.imageOffset.x = px_x;
-	region.imageOffset.y = px_y;
-	region.imageOffset.z = px_z;
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = 0;
+		region.imageSubresource.baseArrayLayer = 0;
+		region.imageSubresource.layerCount = image->layer_count;
 
-	region.imageExtent.width = width;
-	region.imageExtent.height = height;
-	region.imageExtent.depth = depth;
+		region.imageOffset.x = px_x;
+		region.imageOffset.y = px_y;
+		region.imageOffset.z = 0;
+
+		region.imageExtent.width = width;
+		region.imageExtent.height = height;
+		region.imageExtent.depth = 1;
+	} else {
+		// If a negative value is passed, write them all. Otherwise a layer is specified, so just
+		// write that layer.
+		write_count = (layer < 0) ? image->layer_count : 1;
+		regions = KALLOC_TYPE_CARRAY(VkBufferImageCopy, write_count);
+		u64 layer_size = buffer_size / write_count;
+
+		for (u32 i = 0; i < write_count; ++i) {
+			VkBufferImageCopy* region = &regions[i];
+			region->bufferOffset = buffer_offset + (layer_size * i);
+			region->bufferRowLength = 0;
+			region->bufferImageHeight = 0;
+
+			region->imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			region->imageSubresource.mipLevel = 0;
+			region->imageSubresource.baseArrayLayer = i;
+			region->imageSubresource.layerCount = 1; // image->layer_count;
+
+			region->imageOffset.x = px_x;
+			region->imageOffset.y = px_y;
+			region->imageOffset.z = 0;
+
+			region->imageExtent.width = width;
+			region->imageExtent.height = height;
+			region->imageExtent.depth = 1;
+		}
+	}
 
 	rhi->kvkCmdCopyBufferToImage(
 		command_buffer->handle,
 		buffer,
 		image->handle,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		1,
-		&region);
+		write_count,
+		write_count == 1 ? &region : regions);
+
+	if (regions) {
+		KFREE_TYPE_CARRAY(regions, VkBufferImageCopy, write_count);
+	}
 }
 
 void vulkan_image_copy_region_to_buffer(

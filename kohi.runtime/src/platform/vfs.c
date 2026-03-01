@@ -134,6 +134,7 @@ kname* vfs_asset_names_by_type(vfs_state* state, kasset_type type, kname package
 				for (u32 p = 0; p < pcount; ++p) {
 					darray_push(names_da, pnames[p]);
 				}
+				KFREE_TYPE_CARRAY(pnames, kname, pcount);
 			}
 		}
 	}

@@ -406,6 +406,12 @@ static void fix_child_levels_r(kui_state* state, kui_control parent) {
 		for (u32 i = 0; i < len; ++i) {
 			kui_base_control* child_base = get_base(state, parent_base->children[i]);
 			child_base->depth = parent_base->depth + 1;
+
+			// Ensure the clips children/clipped by parent flag is set.
+			if (FLAG_GET(parent_base->flags, KUI_CONTROL_FLAG_CLIPS_CHILDREN_BIT) || FLAG_GET(parent_base->flags, KUI_CONTROL_FLAG_CLIPPED_BY_PARENT_BIT)) {
+				FLAG_SET(child_base->flags, KUI_CONTROL_FLAG_CLIPPED_BY_PARENT_BIT, true);
+			}
+
 			fix_child_levels_r(state, parent_base->children[i]);
 		}
 	}
@@ -440,6 +446,11 @@ b8 kui_system_control_add_child(kui_state* state, kui_control parent, kui_contro
 	child_base->depth = parent_base->depth + 1;
 	ktransform_parent_set(child_base->ktransform, parent_base->ktransform);
 
+	// If parent either clips children or is clipped by a parent, set the clipped by parent flag.
+	if (FLAG_GET(parent_base->flags, KUI_CONTROL_FLAG_CLIPS_CHILDREN_BIT) || FLAG_GET(parent_base->flags, KUI_CONTROL_FLAG_CLIPPED_BY_PARENT_BIT)) {
+		FLAG_SET(child_base->flags, KUI_CONTROL_FLAG_CLIPPED_BY_PARENT_BIT, true);
+	}
+
 	fix_child_levels_r(state, child);
 
 	return true;
@@ -460,6 +471,10 @@ b8 kui_system_control_remove_child(kui_state* state, kui_control parent, kui_con
 		KERROR("Cannot remove a child from a parent which has no children.");
 		false;
 	}
+
+	// Unset clipping flags.
+	FLAG_SET(child_base->flags, KUI_CONTROL_FLAG_CLIPPED_BY_PARENT_BIT, false);
+	FLAG_SET(child_base->flags, KUI_CONTROL_FLAG_CLIPS_CHILDREN_BIT, false);
 
 	u32 child_count = darray_length(parent_base->children);
 	for (u32 i = 0; i < child_count; ++i) {
@@ -594,7 +609,7 @@ void kui_base_control_destroy(kui_state* state, kui_control* self) {
 		}
 	}
 
-	if (FLAG_GET(base->flags, KUI_CONTROL_FLAG_USER_DATA_FREE_ON_DESTROY)) {
+	if (FLAG_GET(base->flags, KUI_CONTROL_FLAG_USER_DATA_FREE_ON_DESTROY_BIT)) {
 		if (base->user_data && base->user_data_size) {
 			kfree(base->user_data, base->user_data_size, base->user_data_memory_tag);
 		}
@@ -673,7 +688,7 @@ void kui_control_set_flag(kui_state* state, kui_control self, kui_control_flag_b
 
 void kui_control_set_user_data(kui_state* state, kui_control self, u32 data_size, void* data, b8 free_on_destroy, memory_tag tag) {
 	kui_base_control* base = get_base(state, self);
-	FLAG_SET(base->flags, KUI_CONTROL_FLAG_USER_DATA_FREE_ON_DESTROY, free_on_destroy);
+	FLAG_SET(base->flags, KUI_CONTROL_FLAG_USER_DATA_FREE_ON_DESTROY_BIT, free_on_destroy);
 	base->user_data = data;
 	base->user_data_size = data_size;
 	base->user_data_memory_tag = tag;
@@ -848,6 +863,23 @@ static b8 control_and_ancestors_visible_r(kui_state* state, const kui_base_contr
 	return true;
 }
 
+static kui_control control_get_clipping_parent_r(kui_state* state, const kui_base_control* control) {
+	if (control->parent.val != INVALID_KUI_CONTROL.val) {
+		kui_base_control* parent_base = get_base(state, control->parent);
+		if (FLAG_GET(parent_base->flags, KUI_CONTROL_FLAG_CLIPS_CHILDREN_BIT)) {
+			// This is the clipping control.
+			return control->parent;
+		}
+		// If this control is also clipped by a parent, try further up.
+		if (FLAG_GET(parent_base->flags, KUI_CONTROL_FLAG_CLIPPED_BY_PARENT_BIT)) {
+			return control_get_clipping_parent_r(state, parent_base);
+		}
+	}
+
+	// Control has no parent, thus no clipping parent.
+	return INVALID_KUI_CONTROL;
+}
+
 static b8 control_and_ancestors_active_and_visible_r(kui_state* state, const kui_base_control* control) {
 	return control_and_ancestors_active_r(state, control) && control_and_ancestors_visible_r(state, control);
 }
@@ -872,6 +904,26 @@ static b8 control_event_intersects(kui_state* typed_state, kui_control control, 
 	if (!control_and_ancestors_active_and_visible_r(typed_state, base)) {
 		// Skip ones that aren't.
 		return false;
+	}
+
+	if (FLAG_GET(base->flags, KUI_CONTROL_FLAG_CLIPPED_BY_PARENT_BIT)) {
+		// Get the clipping parent control, and get its bounds, transformed as below, and perform
+		// that test first. If that passes, then do below, otherwise boot.
+		kui_control clipping_parent = control_get_clipping_parent_r(typed_state, base);
+		if (clipping_parent.val != INVALID_KUI_CONTROL.val) {
+			kui_base_control* parent = get_base(typed_state, clipping_parent);
+			mat4 parent_model = ktransform_world_get(parent->ktransform);
+			mat4 parent_inv = mat4_inverse(parent_model);
+			vec3 parent_transformed_evt = vec3_transform((vec3){evt.x, evt.y, 0.0f}, 1.0f, parent_inv);
+
+			/* KTRACE("Got clipping parent, checking contains..."); */
+
+			if (!rect_2d_contains_point(parent->bounds, (vec2){parent_transformed_evt.x, parent_transformed_evt.y})) {
+				/* KTRACE("Click not contained in clipping parent, booting."); */
+				// Not inside the parent's bounds, boot.
+				return false;
+			}
+		}
 	}
 
 	mat4 model = ktransform_world_get(base->ktransform);

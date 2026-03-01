@@ -472,10 +472,9 @@ ktexture texture_acquire_with_options(ktexture_load_options options, void* liste
 			32,
 			0,
 			0,
-			0,
+			-1,
 			state_ptr->widths[t],
 			state_ptr->heights[t],
-			1,
 			options.pixel_data);
 
 		if (!write_result) {
@@ -644,10 +643,9 @@ ktexture texture_acquire_with_options_sync(ktexture_load_options options) {
 			32,
 			0,
 			0,
-			0,
+			-1,
 			state_ptr->widths[t],
 			state_ptr->heights[t],
-			1,
 			all_pixels);
 
 		if (!write_result) {
@@ -709,9 +707,9 @@ b8 texture_resize(ktexture t, u32 width, u32 height, b8 regenerate_internal_data
 	return false;
 }
 
-b8 texture_write_data(ktexture t, u32 bpp, u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth, void* data) {
+b8 texture_write_data(ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, void* data) {
 	if (t) {
-		return renderer_texture_write_data(state_ptr->renderer, t, bpp, px_x, px_y, px_z, width, height, depth, data);
+		return renderer_texture_write_data(state_ptr->renderer, t, bpp, px_x, px_y, layer, width, height, data);
 	}
 	return false;
 }
@@ -1327,10 +1325,9 @@ static b8 texture_apply_asset_data(ktexture t, kname name, const ktexture_load_o
 		32,
 		0,
 		0,
-		0,
+		-1,
 		state_ptr->widths[t],
 		state_ptr->heights[t],
-		1,
 		all_pixels);
 
 	if (!write_result) {

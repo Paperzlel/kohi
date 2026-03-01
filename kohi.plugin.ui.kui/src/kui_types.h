@@ -101,7 +101,10 @@ typedef enum kui_control_flag_bits {
 	KUI_CONTROL_FLAG_FOCUSABLE_BIT = 1 << 4,
 	KUI_CONTROL_FLAG_IS_DRAGGING_BIT = 1 << 5,
 	KUI_CONTROL_FLAG_CAN_MOUSE_INTERACT_BIT = 1 << 6,
-	KUI_CONTROL_FLAG_USER_DATA_FREE_ON_DESTROY = 1 << 7
+	KUI_CONTROL_FLAG_USER_DATA_FREE_ON_DESTROY_BIT = 1 << 7,
+	// Control clips children
+	KUI_CONTROL_FLAG_CLIPS_CHILDREN_BIT = 1 << 8,
+	KUI_CONTROL_FLAG_CLIPPED_BY_PARENT_BIT = 1 << 9
 } kui_control_flag_bits;
 
 typedef u32 kui_control_flags;
@@ -203,10 +206,21 @@ typedef struct kui_panel_control {
 	b8 is_dirty;
 } kui_panel_control;
 
+typedef enum kui_label_flag_bits {
+	KUI_LABEL_FLAG_NONE = 0,
+	KUI_LABEL_FLAG_WRAP_BIT = 1 << 0,
+	KUI_LABEL_FLAG_TRUNCATE_BIT = 1 << 1,
+	KUI_LABEL_FLAG_TRUNCATE_ELLIPSIS_BIT = 1 << 2
+} kui_label_flag_bits;
+
+typedef u32 kui_label_flags;
+
 typedef struct kui_label_control {
 	kui_base_control base;
 	vec2i size;
 	vec4 colour;
+	f32 max_width;
+	kui_label_flags flags;
 	u32 binding_instance_id;
 
 	font_type type;

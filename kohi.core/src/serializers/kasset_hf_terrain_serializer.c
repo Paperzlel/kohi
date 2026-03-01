@@ -41,7 +41,6 @@ KAPI b8 kasset_hf_terrain_deserialize(u64 size, const void* in_block, kasset_hf_
 	// Material count
 	offset = read_binary_u8(&out_asset->material_count, in_block, offset);
 	out_asset->materials = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material, out_asset->material_count);
-	out_asset->material_names = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material_names, out_asset->material_count);
 	offset = read_binary(out_asset->materials, in_block, offset, sizeof(kasset_hf_terrain_material) * out_asset->material_count);
 
 	binary_string_table string_table = binary_string_table_from_block((((u8*)in_block) + offset));

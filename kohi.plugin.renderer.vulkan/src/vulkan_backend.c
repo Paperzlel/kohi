@@ -43,7 +43,7 @@
 
 // NOTE: To disable the custom allocator, comment this out or set to 0.
 #ifndef KVULKAN_USE_CUSTOM_ALLOCATOR
-#	define KVULKAN_USE_CUSTOM_ALLOCATOR 1
+#	define KVULKAN_USE_CUSTOM_ALLOCATOR 0
 #endif
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
@@ -2016,7 +2016,7 @@ b8 vulkan_renderer_texture_resize(renderer_backend_interface* backend, ktexture 
 	return true;
 }
 
-b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktexture t, u32 bpp, u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth, const u8* pixels, b8 include_in_frame_workload) {
+b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, const u8* pixels, b8 include_in_frame_workload) {
 
 	KASSERT_DEBUG_MSG(t != INVALID_KTEXTURE, "Invalid texture handle passed.");
 	vulkan_context* context = (vulkan_context*)backend->internal_context;
@@ -2035,7 +2035,8 @@ b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktext
 	krenderbuffer staging = KRENDERBUFFER_INVALID;
 	// A pointer to the command buffer to be used.
 	vulkan_command_buffer* command_buffer = 0;
-	u64 size = width * height * (depth ? depth : 1) * bpp;
+	u32 depth = texture->images[0].layer_count;
+	u64 size = width * height * (depth ? depth : 1) * (bpp / 8);
 	if (include_in_frame_workload) {
 		// Including in the frame workload means the current window's current-frame staging buffer can be used.
 		u32 current_frame = context->current_window->renderer_state->backend_state->current_frame;
@@ -2073,7 +2074,7 @@ b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktext
 		vulkan_image_transition_layout(context, command_buffer, image, image->format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 		// Copy the data from the buffer.
-		vulkan_image_copy_from_buffer(context, image, context->renderbuffers[staging].infos[0].handle, staging_offset, px_x, px_y, px_z, width, height, depth, command_buffer);
+		vulkan_image_copy_from_buffer(context, image, context->renderbuffers[staging].infos[0].handle, size, staging_offset, px_x, px_y, layer, width, height, command_buffer);
 
 		if (image->mip_levels <= 1 || !vulkan_image_mipmaps_generate(context, image, command_buffer)) {
 			// If mip generation isn't needed or fails, fall back to ordinary transition.

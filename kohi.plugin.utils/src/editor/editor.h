@@ -226,9 +226,12 @@ typedef struct editor_state {
 	kui_control tex_browser_title;
 	vec2i tex_browser_min_size;
 	f32 tex_browser_right_col_x;
+	kui_control tex_browser_search_label;
+	kui_control tex_browser_search_textbox;
 	kui_control tex_browser_scrollable_control;
 	kui_control tex_browser_content_container;
 	u32 tex_browser_tex_count;
+	char* tex_browser_search_text;
 	kui_control* tex_browser_image_boxes;
 	kui_control* tex_browser_labels;
 	f32 imagebox_size;

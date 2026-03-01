@@ -20,6 +20,10 @@
 static b8 regenerate_label_geometry(kui_state* state, const kui_control self, font_geometry* pending_data);
 
 kui_control kui_label_control_create(kui_state* state, const char* name, font_type type, kname font_name, u16 font_size, const char* text) {
+	return kui_label_control_create_ex(state, name, type, font_name, font_size, text, 0, KUI_LABEL_FLAG_NONE);
+}
+
+kui_control kui_label_control_create_ex(kui_state* state, const char* name, font_type type, kname font_name, u16 font_size, const char* text, f32 max_width, kui_label_flags flags) {
 	kui_control handle = kui_base_control_create(state, name, KUI_CONTROL_TYPE_LABEL);
 
 	kui_base_control* base = kui_system_get_base(state, handle);
@@ -28,6 +32,12 @@ kui_control kui_label_control_create(kui_state* state, const char* name, font_ty
 
 	// Reasonable defaults.
 	typed_control->colour = vec4_one();
+	typed_control->flags = flags;
+	if (!max_width && (FLAG_GET(flags, KUI_LABEL_FLAG_TRUNCATE_BIT) || FLAG_GET(flags, KUI_LABEL_FLAG_TRUNCATE_ELLIPSIS_BIT) || FLAG_GET(flags, KUI_LABEL_FLAG_WRAP_BIT))) {
+		KWARN("%s - max_width cannot be zero when truncation or wrap flags are set. Defaulting to width of 100.", __FUNCTION__);
+		max_width = 100.0f;
+	}
+	typed_control->max_width = max_width;
 
 	// Assign function pointers.
 	base->destroy = kui_label_control_destroy;
@@ -41,18 +51,12 @@ kui_control kui_label_control_create(kui_state* state, const char* name, font_ty
 	// This also gets the atlas texture.
 	switch (typed_control->type) {
 	case FONT_TYPE_BITMAP:
-		if (!font_system_bitmap_font_acquire(state->font_system, font_name, &typed_control->bitmap_font)) {
-			KERROR("Failed to acquire bitmap font for kui_label. See logs for details. Creation failed.");
-			kui_base_control_destroy(state, &handle);
-			return handle;
-		}
+		KASSERT(font_system_bitmap_font_acquire(state->font_system, font_name, &typed_control->bitmap_font));
 		break;
 	case FONT_TYPE_SYSTEM:
-		if (!font_system_system_font_acquire(state->font_system, font_name, font_size, &typed_control->system_font)) {
-			KERROR("Failed to acquire system font variant for kui_label. See logs for details. Creation failed.");
-			kui_base_control_destroy(state, &handle);
-			return handle;
-		}
+		KASSERT(font_system_system_font_acquire(state->font_system, font_name, font_size, &typed_control->system_font));
+		// Verify atlas has the glyphs needed.
+		KASSERT(font_system_system_font_verify_atlas(state->font_system, typed_control->system_font, text));
 		break;
 	}
 
@@ -68,7 +72,6 @@ kui_control kui_label_control_create(kui_state* state, const char* name, font_ty
 	if (text && string_length(text) > 0) {
 		kui_label_text_set(state, handle, text);
 	} else {
-		/* kui_label_text_set(state, handle, ""); */
 		kui_label_text_set(state, handle, KNULL);
 	}
 
@@ -76,20 +79,7 @@ kui_control kui_label_control_create(kui_state* state, const char* name, font_ty
 	// Acquire binding set resources for this control.
 	typed_control->binding_instance_id = INVALID_ID;
 	typed_control->binding_instance_id = kshader_acquire_binding_set_instance(kui_shader, 1);
-	if (typed_control->binding_instance_id == INVALID_ID) {
-		KFATAL("Unable to acquire shader binding set resources for label.");
-		kui_base_control_destroy(state, &handle);
-		return handle;
-	}
-
-	if (typed_control->type == FONT_TYPE_SYSTEM) {
-		// Verify atlas has the glyphs needed.
-		if (!font_system_system_font_verify_atlas(state->font_system, typed_control->system_font, text)) {
-			KERROR("Font atlas verification failed.");
-			kui_base_control_destroy(state, &handle);
-			return handle;
-		}
-	}
+	KASSERT(typed_control->binding_instance_id != INVALID_ID);
 
 	// load
 	if (typed_control->text && typed_control->text[0] != 0) {
@@ -310,9 +300,9 @@ void kui_label_text_set(kui_state* state, kui_control self, const char* text) {
 
 		vec2 string_size = vec2_one();
 		if (typed_control->type == FONT_TYPE_BITMAP) {
-			font_system_bitmap_font_measure_string(state->font_system, typed_control->bitmap_font, typed_control->text, &string_size);
+			font_system_bitmap_font_measure_string(state->font_system, typed_control->bitmap_font, typed_control->text, typed_control->max_width, &string_size);
 		} else {
-			font_system_system_font_measure_string(state->font_system, typed_control->system_font, typed_control->text, &string_size);
+			font_system_system_font_measure_string(state->font_system, typed_control->system_font, typed_control->text, typed_control->max_width, &string_size);
 		}
 
 		base->bounds.width = string_size.x;
@@ -354,9 +344,12 @@ vec2 kui_label_measure_string(kui_state* state, kui_control self) {
 	kui_label_control* typed_control = (kui_label_control*)base;
 	vec2 string_size = vec2_one();
 	if (typed_control->type == FONT_TYPE_BITMAP) {
-		font_system_bitmap_font_measure_string(state->font_system, typed_control->bitmap_font, typed_control->text, &string_size);
+		font_system_bitmap_font_measure_string(state->font_system, typed_control->bitmap_font, typed_control->text, typed_control->max_width, &string_size);
 	} else {
-		font_system_system_font_measure_string(state->font_system, typed_control->system_font, typed_control->text, &string_size);
+		font_system_system_font_measure_string(state->font_system, typed_control->system_font, typed_control->text, typed_control->max_width, &string_size);
+	}
+	if (typed_control->max_width > 0 && (FLAG_GET(typed_control->flags, KUI_LABEL_FLAG_TRUNCATE_BIT) || FLAG_GET(typed_control->flags, KUI_LABEL_FLAG_TRUNCATE_ELLIPSIS_BIT))) {
+		string_size.x = typed_control->max_width;
 	}
 	return string_size;
 }
@@ -366,10 +359,13 @@ static b8 regenerate_label_geometry(kui_state* state, const kui_control self, fo
 	KASSERT(base);
 	kui_label_control* typed_control = (kui_label_control*)base;
 
+	b8 use_ellipsis = FLAG_GET(typed_control->flags, KUI_LABEL_FLAG_TRUNCATE_ELLIPSIS_BIT);
+	b8 truncate = use_ellipsis || FLAG_GET(typed_control->flags, KUI_LABEL_FLAG_TRUNCATE_BIT);
+
 	if (typed_control->type == FONT_TYPE_BITMAP) {
-		return font_system_bitmap_font_generate_geometry(state->font_system, typed_control->bitmap_font, typed_control->text, pending_data);
+		return font_system_bitmap_font_generate_geometry(state->font_system, typed_control->bitmap_font, typed_control->text, typed_control->max_width, truncate, use_ellipsis, pending_data);
 	} else if (typed_control->type == FONT_TYPE_SYSTEM) {
-		return font_system_system_font_generate_geometry(state->font_system, typed_control->system_font, typed_control->text, pending_data);
+		return font_system_system_font_generate_geometry(state->font_system, typed_control->system_font, typed_control->text, typed_control->max_width, truncate, use_ellipsis, pending_data);
 	}
 	return false;
 }

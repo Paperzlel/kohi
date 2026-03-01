@@ -337,7 +337,7 @@ KAPI b8 texture_resize(ktexture t, u32 width, u32 height, b8 regenerate_internal
  * @param data A pointer to the data to be written.
  * @return True on success; otherwise false.
  */
-KAPI b8 texture_write_data(ktexture t, u32 bpp, u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth, void* data);
+KAPI b8 texture_write_data(ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, void* data);
 
 KAPI kname texture_name_get(ktexture t);
 

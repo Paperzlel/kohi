@@ -10,6 +10,7 @@
 
 #include "controls/kui_button.h"
 #include "debug/kassert.h"
+#include "defines.h"
 #include "kui_defines.h"
 #include "kui_system.h"
 #include "kui_types.h"
@@ -44,6 +45,9 @@ kui_control kui_scrollable_control_create(kui_state* state, const char* name, ve
 	base->update = kui_scrollable_control_update;
 	base->render = kui_scrollable_control_render;
 
+	// Clips child controls.
+	FLAG_SET(base->flags, KUI_CONTROL_FLAG_CLIPS_CHILDREN_BIT, true);
+
 	// Setup clipping mask geometry.
 	base->clip_mask.reference_id = 1; // TODO: move creation/reference_id assignment.
 
@@ -75,6 +79,10 @@ kui_control kui_scrollable_control_create(kui_state* state, const char* name, ve
 	string_free(content_name);
 
 	kui_system_control_add_child(state, handle, typed_control->content_wrapper);
+
+	// The content wrapper itself shouldn't block events.
+	kui_base_control* content_wrapper_base = kui_system_get_base(state, typed_control->content_wrapper);
+	FLAG_SET(content_wrapper_base->flags, KUI_CONTROL_FLAG_CAN_MOUSE_INTERACT_BIT, false);
 
 	vec2i atlas_size = (vec2i){state->atlas_texture_size.x, state->atlas_texture_size.y};
 
@@ -311,6 +319,19 @@ void kui_scrollable_control_scroll_x(kui_state* state, kui_control self, f32 amo
 
 	typed_control->offset.x += amount;
 	recalculate(state, typed_control);
+}
+
+void kui_scrollable_control_scroll_y_set(kui_state* state, kui_control self, f32 pos) {
+	kui_base_control* base = kui_system_get_base(state, self);
+	KASSERT(base);
+	kui_scrollable_control* typed_control = (kui_scrollable_control*)base;
+
+	pos = KCLAMP(pos, 0, 1);
+
+	typed_control->offset.y = typed_control->min_offset.y * pos;
+	recalculate(state, typed_control);
+}
+void kui_scrollable_control_scroll_x_set(kui_state* state, kui_control self, f32 pos) {
 }
 
 void kui_scrollable_set_content_size(kui_state* state, kui_control self, f32 width, f32 height) {

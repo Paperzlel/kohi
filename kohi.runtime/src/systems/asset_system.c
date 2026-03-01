@@ -864,6 +864,7 @@ kasset_hf_terrain* asset_system_request_hf_terrain_from_package_sync(struct asse
 	vfs_asset_data data = vfs_request_asset_sync(state->vfs, info);
 
 	b8 result = kasset_hf_terrain_deserialize(data.size, data.bytes, out_asset);
+	vfs_asset_data_cleanup(&data);
 	if (!result) {
 		KERROR("Failed to deserialize hf_terrain asset. See logs for details.");
 		KFREE_TYPE(out_asset, kasset_hf_terrain, MEMORY_TAG_ASSET);
@@ -875,7 +876,17 @@ kasset_hf_terrain* asset_system_request_hf_terrain_from_package_sync(struct asse
 
 void asset_system_release_hf_terrain(struct asset_system_state* state, kasset_hf_terrain* asset) {
 	if (state && asset) {
-		KFREE_TYPE(asset, kasset_model, MEMORY_TAG_ASSET);
+		KFREE_TYPE_CARRAY(asset->blocks, kasset_hf_terrain_block, asset->block_count_x * asset->block_count_z);
+		KFREE_TYPE_CARRAY(asset->vertices, kasset_hf_terrain_vertex, asset->vertex_count);
+		KFREE_TYPE_CARRAY(asset->materials, kasset_hf_terrain_material, asset->material_count);
+		for (u32 i = 0; i < asset->material_count; ++i) {
+			string_free(asset->material_names[i].albedo_str);
+			string_free(asset->material_names[i].normal_str);
+			string_free(asset->material_names[i].mra_str);
+		}
+		KFREE_TYPE_CARRAY(asset->material_names, kasset_hf_terrain_material_names, asset->material_count);
+
+		KFREE_TYPE(asset, kasset_hf_terrain, MEMORY_TAG_ASSET);
 	}
 }
 

@@ -2,9 +2,8 @@
 
 #include "kui_system.h"
 
-#include <systems/font_system.h>
-
 KAPI kui_control kui_label_control_create(kui_state* state, const char* name, font_type type, kname font_name, u16 font_size, const char* text);
+KAPI kui_control kui_label_control_create_ex(kui_state* state, const char* name, font_type type, kname font_name, u16 font_size, const char* text, f32 max_width, kui_label_flags flags);
 KAPI void kui_label_control_destroy(kui_state* state, kui_control* self);
 KAPI b8 kui_label_control_update(kui_state* state, kui_control self, struct frame_data* p_frame_data);
 KAPI b8 kui_label_control_render(kui_state* state, kui_control self, struct frame_data* p_frame_data, struct kui_render_data* render_data);

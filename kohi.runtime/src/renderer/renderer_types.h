@@ -490,7 +490,7 @@ typedef struct renderer_backend_interface {
 	 * @param pixels The raw image data to be written.
 	 * @returns True on success; otherwise false.
 	 */
-	b8 (*texture_write_data)(struct renderer_backend_interface* backend, ktexture t, u32 bpp, u32 px_x, u32 px_y, u32 px_z, u32 width, u32 height, u32 depth, const u8* pixels, b8 include_in_frame_workload);
+	b8 (*texture_write_data)(struct renderer_backend_interface* backend, ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, const u8* pixels, b8 include_in_frame_workload);
 
 	/**
 	 * @brief Reads the given data from the provided texture.

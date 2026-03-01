@@ -516,6 +516,7 @@ struct kscene* kscene_create(kname scene_asset_name, const char* config, PFN_sce
 		scene->hf = hf_terrain_generate(2, 2);
 	} else {
 		scene->hf = hf_terrain_create_from_asset(terrain_asset);
+		asset_system_release_hf_terrain(engine_systems_get()->asset_state, terrain_asset);
 	}
 
 	return scene;
@@ -653,6 +654,8 @@ void kscene_destroy(struct kscene* scene) {
 
 	// HACK: move this to a proper location.
 	hf_terrain_destroy(&scene->hf);
+
+	string_free(scene->hf_terrain_asset_name);
 
 #endif
 
@@ -2865,7 +2868,7 @@ hf_terrain_material_data* kscene_get_hf_terrain_materials(struct kscene* scene, 
 	hf_terrain_material_data* materials = KALLOC_TYPE_CARRAY(hf_terrain_material_data, scene->hf.material_count);
 	*out_count = scene->hf.material_count;
 
-	for (u8 i = 0; i < HF_TERRAIN_MAX_MATERIALS; ++i) {
+	for (u8 i = 0; i < (*out_count); ++i) {
 		materials[i].albedo_asset_name = scene->hf.albedo_asset_names[i];
 		materials[i].albedo_asset_package_name = scene->hf.albedo_package_names[i];
 

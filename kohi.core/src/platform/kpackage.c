@@ -489,6 +489,7 @@ b8 kpackage_parse_manifest_file_content(const char* path, asset_manifest* out_ma
 					continue;
 				}
 				asset.type = kasset_type_from_string(type_str);
+				string_free(type_str);
 
 				// Verify that the asset name doesn't already exist in the manifest.
 				// TODO: This really only needs to be unique per asset type.

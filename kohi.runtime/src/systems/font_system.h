@@ -122,8 +122,10 @@ typedef struct font_system_config {
  * Geometry generated from either a bitmap or system font.
  */
 typedef struct font_geometry {
-	/** @brief The number of quads to be drawn. */
+	/** @brief The number of quads created in total. */
 	u32 quad_count;
+	/** @brief The number of quads to be drawn. */
+	u32 render_quad_count;
 	/** @brief The size of the vertex buffer data in bytes. */
 	u64 vertex_buffer_size;
 	/** @brief The size of the index buffer data in bytes. */
@@ -189,10 +191,11 @@ KAPI b8 font_system_bitmap_font_load(struct font_system_state* state, kname asse
  * @param state A pointer to the font system state.
  * @param font A handle to the bitmap font to use for measuring.
  * @param text The text to be measured.
+ * @param max_width The width to wrap text at, if wrapping. Pass 0 for no wrapping.
  * @param out_size A pointer to hold the measured size, if successful. Required.
  * @return True on success; otherwise false.
  */
-KAPI b8 font_system_bitmap_font_measure_string(struct font_system_state* state, khandle font, const char* text, vec2* out_size);
+KAPI b8 font_system_bitmap_font_measure_string(struct font_system_state* state, khandle font, const char* text, f32 max_width, vec2* out_size);
 
 /**
  * @brief Gets a pointer to the font's atlas.
@@ -221,7 +224,7 @@ KAPI f32 font_system_bitmap_font_line_height_get(struct font_system_state* state
  * @param out_size A pointer to hold the generated font geometry, if successful. Required.
  * @return True on success; otherwise false.
  */
-KAPI b8 font_system_bitmap_font_generate_geometry(struct font_system_state* state, khandle font, const char* text, font_geometry* out_geometry);
+KAPI b8 font_system_bitmap_font_generate_geometry(struct font_system_state* state, khandle font, const char* text, f32 max_width, b8 truncate, b8 use_ellipsis, font_geometry* out_geometry);
 
 /**
  * @brief Attempts to acquire a system font variant of the given name and size. Must be a registered/loaded font.
@@ -263,10 +266,11 @@ KAPI b8 font_system_system_font_verify_atlas(struct font_system_state* state, sy
  * @param state A pointer to the font system state.
  * @param variant The system font variant to use for measuring.
  * @param text The text to be measured.
+ * @param max_width The width to wrap text at, if wrapping. Pass 0 for no wrapping.
  * @param out_size A pointer to hold the measured size, if successful. Required.
  * @return True on success; otherwise false.
  */
-KAPI b8 font_system_system_font_measure_string(struct font_system_state* state, system_font_variant variant, const char* text, vec2* out_size);
+KAPI b8 font_system_system_font_measure_string(struct font_system_state* state, system_font_variant variant, const char* text, f32 max_width, vec2* out_size);
 
 /**
  * @brief Gets the line height of the given font.
@@ -286,7 +290,7 @@ KAPI f32 font_system_system_font_line_height_get(struct font_system_state* state
  * @param out_size A pointer to hold the generated font geometry, if successful. Required.
  * @return True on success; otherwise false.
  */
-KAPI b8 font_system_system_font_generate_geometry(struct font_system_state* state, system_font_variant variant, const char* text, font_geometry* out_geometry);
+KAPI b8 font_system_system_font_generate_geometry(struct font_system_state* state, system_font_variant variant, const char* text, f32 max_width, b8 truncate, b8 use_ellipsis, font_geometry* out_geometry);
 
 /**
  * @brief Gets a pointer to the font's atlas.
