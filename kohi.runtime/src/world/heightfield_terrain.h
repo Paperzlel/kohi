@@ -73,6 +73,12 @@
 struct frame_data;
 struct kasset_hf_terrain;
 
+typedef enum hf_terrain_material_map {
+	HF_TERRAIN_MATERIAL_MAP_ALBEDO = 0,
+	HF_TERRAIN_MATERIAL_MAP_NORMAL = 1,
+	HF_TERRAIN_MATERIAL_MAP_MRA = 2
+} hf_terrain_material_map;
+
 // Heightfield Vertex 3D
 typedef struct hf_vertex_3d {
 	vec4 position; // w holds texcoord x
@@ -210,6 +216,8 @@ KAPI i32 hf_terrain_chunk_get_vert_index_at(const hf_chunk* chunk, u8 x, u8 z);
 KAPI void hf_terrain_recalculate_vertices(hf_terrain* t);
 
 KAPI void hf_terrain_chunk_recalculate_vertices(hf_terrain* t, hf_chunk* chunk);
+
+KAPI void hf_terrain_material_texture_set(hf_terrain* t, u8 material_index, hf_terrain_material_map map, ktexture texture);
 
 /**
  * Attempts to retrieve the terrain height at the given location. A false result means there is no terrain at that

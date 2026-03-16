@@ -352,7 +352,18 @@ KAPI b8 texture_resize(ktexture t, u32 width, u32 height, b8 regenerate_internal
  * @param data A pointer to the data to be written.
  * @return True on success; otherwise false.
  */
-KAPI b8 texture_write_data(ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, void* data);
+KAPI b8 texture_write_data(ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, void* data, b8 defer_to_next_frame);
+
+/**
+ * @brief Writes the src texture's pixel data to the provided dest texture on the given layer. May only be used on
+ * array textures. For non-array textures, use texture_write_data.
+ *
+ * @param dest The texture to be written to.
+ * @param layer The index of the layer to write to.
+ * @param src The texture whose pixel data is to be written to dest.
+ * @return True on success; otherwise false.
+ */
+KAPI b8 texture_set_layer_data_from_texture(ktexture dest, u16 layer, ktexture src);
 
 // NOTE: does not increase internal reference count, and should not be used for actual texture references (i.e. during
 // rendering). Use this to obtain texture properties, for example.

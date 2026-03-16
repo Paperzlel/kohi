@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "debug/kassert.h"
+#include "defines.h"
 #include "logger.h"
 #include "math/math_types.h"
 #include "math/mtwister.h" // for 64-bit RNG
@@ -263,6 +264,21 @@ void frustum_corner_points_world_space(mat4 projection_view, vec4* corners) {
 f32 vec3_distance_to_line(vec3 point, vec3 line_start, vec3 line_direction) {
 	f32 magnitude = vec3_length(vec3_cross(vec3_sub(point, line_start), line_direction));
 	return magnitude / vec3_length(line_direction);
+}
+
+f32 vec3_angle(vec3 v_0, vec3 v_1) {
+	f32 mag_0 = vec3_length(v_0);
+	f32 mag_1 = vec3_length(v_1);
+
+	if (mag_0 == 0.0f || mag_1 == 0.0f) {
+		return 0.0f;
+	}
+
+	f32 dot = vec3_dot(v_0, v_1) * (mag_0 * mag_1);
+	dot = KCLAMP(dot, -1.0f, 1.0f);
+
+	f32 radians = kacos(dot);
+	return radians * K_RAD2DEG_MULTIPLIER;
 }
 
 static void seed_randoms(void) {

@@ -1127,7 +1127,7 @@ static b8 rebuild_system_font_variant_atlas(system_font_lookup* lookup, system_f
 	}
 
 	// Write texture data to atlas.
-	if (!renderer_texture_write_data(engine_systems_get()->renderer_system, variant->atlas, 32, 0, 0, 0, variant->data.atlas_size_x, variant->data.atlas_size_y, rgba_pixels)) {
+	if (!renderer_texture_write_data(engine_systems_get()->renderer_system, variant->atlas, 32, 0, 0, 0, variant->data.atlas_size_x, variant->data.atlas_size_y, rgba_pixels, false)) {
 		KERROR("Failed to write data to system font variant texture");
 		return false;
 	}

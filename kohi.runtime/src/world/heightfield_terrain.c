@@ -4,6 +4,7 @@
 #include "core/engine.h"
 #include "core/frame_data.h"
 #include "core_render_types.h"
+#include "logger.h"
 #include "math/kmath.h"
 #include "math/math_types.h"
 #include "renderer/renderer_frontend.h"
@@ -584,6 +585,24 @@ void hf_terrain_chunk_recalculate_vertices(hf_terrain* t, hf_chunk* chunk) {
 	}
 }
 
+void hf_terrain_material_texture_set(hf_terrain* t, u8 material_index, hf_terrain_material_map map, ktexture texture) {
+	ktexture array_texture = INVALID_KTEXTURE;
+	switch (map) {
+	case HF_TERRAIN_MATERIAL_MAP_ALBEDO:
+		array_texture = t->albedo_texture_array;
+		break;
+	case HF_TERRAIN_MATERIAL_MAP_NORMAL:
+		array_texture = t->normal_texture_array;
+		break;
+	case HF_TERRAIN_MATERIAL_MAP_MRA:
+		array_texture = t->mra_texture_array;
+		break;
+	}
+
+	if (!texture_set_layer_data_from_texture(array_texture, material_index, texture)) {
+		KERROR("%s - Failed to update terrain texture layer", __FUNCTION__);
+	}
+}
 b8 hf_terrain_get_height_at(const hf_terrain* t, f32 world_x, f32 world_z, vec3* out_pos, vec3* out_normal) {
 	if (!t || !aabb_contains_point((vec3){world_x, 0.0f, world_z}, t->aabb)) {
 		return false;

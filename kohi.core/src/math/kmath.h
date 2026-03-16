@@ -2479,6 +2479,9 @@ KINLINE b8 rect_2d_contains_point(rect_2d rect, vec2 point) {
 
 KAPI f32 vec3_distance_to_line(vec3 point, vec3 line_start, vec3 line_direction);
 
+// Angle in degrees between 2 vectors.
+KINLINE f32 vec3_angle(vec3 v_0, vec3 v_1);
+
 KINLINE vec3 extents_2d_center(extents_2d extents) {
 	return (vec3){
 		(extents.min.x + extents.max.x) * 0.5f,

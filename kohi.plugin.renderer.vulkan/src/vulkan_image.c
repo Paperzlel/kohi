@@ -536,8 +536,8 @@ void vulkan_image_copy_from_buffer(
 	VkBufferImageCopy region = {0};
 	VkBufferImageCopy* regions = KNULL;
 
-	u32 write_count = 0;
-	if (image->layer_count == 1) {
+	u32 write_count = (layer < 0) ? image->layer_count : 1;
+	if (write_count == 1) {
 		write_count = 1;
 		region.bufferOffset = buffer_offset;
 		region.bufferRowLength = 0;
@@ -545,8 +545,8 @@ void vulkan_image_copy_from_buffer(
 
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		region.imageSubresource.mipLevel = 0;
-		region.imageSubresource.baseArrayLayer = 0;
-		region.imageSubresource.layerCount = image->layer_count;
+		region.imageSubresource.baseArrayLayer = layer < 0 ? 0 : layer;
+		region.imageSubresource.layerCount = write_count == 1 ? 1 : image->layer_count;
 
 		region.imageOffset.x = px_x;
 		region.imageOffset.y = px_y;
@@ -558,7 +558,6 @@ void vulkan_image_copy_from_buffer(
 	} else {
 		// If a negative value is passed, write them all. Otherwise a layer is specified, so just
 		// write that layer.
-		write_count = (layer < 0) ? image->layer_count : 1;
 		regions = KALLOC_TYPE_CARRAY(VkBufferImageCopy, write_count);
 		u64 layer_size = buffer_size / write_count;
 

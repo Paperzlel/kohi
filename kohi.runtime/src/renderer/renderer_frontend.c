@@ -630,11 +630,13 @@ void renderer_texture_resources_release(struct renderer_system_state* state, kte
 	}
 }
 
-b8 renderer_texture_write_data(struct renderer_system_state* state, ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, const u8* pixels) {
+b8 renderer_texture_write_data(struct renderer_system_state* state, ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, const u8* pixels, b8 defer_to_next_frame) {
 	if (state && t != INVALID_KTEXTURE) {
-		b8 include_in_frame_workload = (state->frame_number > 0);
-		b8 result = state->backend->texture_write_data(state->backend, t, bpp, px_x, px_y, layer, width, height, pixels, include_in_frame_workload);
-		if (!include_in_frame_workload) {
+		if (state->frame_number > 0) {
+			defer_to_next_frame = true;
+		}
+		b8 result = state->backend->texture_write_data(state->backend, t, bpp, px_x, px_y, layer, width, height, pixels, defer_to_next_frame);
+		if (!defer_to_next_frame) {
 			// TODO: update generation?
 		}
 		return result;

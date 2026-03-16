@@ -102,7 +102,6 @@ static b8 mode_scene_button_clicked(struct kui_state* state, kui_control self, s
 static b8 mode_entity_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 mode_tree_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 mode_hf_terrain_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
-static b8 texture_browser_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 
 static void show_bvh_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static void show_grid_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
@@ -131,6 +130,7 @@ static b8 tree_item_expanded(struct kui_state* state, kui_control self, struct k
 static b8 tree_item_collapsed(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 
 static b8 hft_save_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
+static b8 hft_material_imagebox_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static void hft_paint_brush_diameter_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void hft_paint_brush_strength_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void hft_paint_material_index_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
@@ -142,10 +142,22 @@ static void hf_terrain_checkbox_check_changed(struct kui_state* state, kui_contr
 static void hf_terrain_erase_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static void hf_terrain_set_height_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 
+static b8 texture_browser_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
+static b8 texture_browser_confirm_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
+static b8 texture_browser_cancel_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
+static void tex_browser_open_for_browsing(editor_state* state);
+static void tex_browser_open_for_selection(editor_state* state, void* context, PFN_tex_browser_selected_callback selected_callback, PFN_tex_browser_cancelled_callback cancelled_callback);
+static void tex_browser_close(editor_state* state);
 static void tex_browser_refresh(editor_state* state);
 static void tex_browser_search_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void tex_browser_search_game_pak_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static b8 tex_browser_imagebox_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
+
+typedef struct hf_terrain_material_imagebox_context {
+	editor_state* editor;
+	u8 material_index;
+	hf_terrain_material_map map;
+} hf_terrain_material_imagebox_context;
 
 b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname game_package_name) {
 	*memory_requirement = sizeof(editor_state);
@@ -653,25 +665,42 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname 
 					char* name = string_format("hft_general_material_albedo_image_box_%u", i);
 					state->hft_general_material_albedo_image_boxes[i] = kui_image_box_control_create(state->kui_state, name, (vec2i){imagebox_size, imagebox_size});
 					string_free(name);
+					hf_terrain_material_imagebox_context* context = KALLOC_TYPE(hf_terrain_material_imagebox_context, MEMORY_TAG_EDITOR);
+					context->editor = state;
+					context->material_index = i;
+					context->map = HF_TERRAIN_MATERIAL_MAP_ALBEDO;
 					KASSERT(kui_system_control_add_child(kui_state, state->hft_general_content_container, state->hft_general_material_albedo_image_boxes[i]));
 					kui_control_position_set(kui_state, state->hft_general_material_albedo_image_boxes[i], (vec3){200, i * (imagebox_size + imagebox_padding), 0});
-					// TODO: onclick texture browser
+					kui_control_set_user_data(kui_state, state->hft_general_material_albedo_image_boxes[i], sizeof(hf_terrain_material_imagebox_context), context, true, MEMORY_TAG_EDITOR);
+					kui_control_set_on_click(kui_state, state->hft_general_material_albedo_image_boxes[i], hft_material_imagebox_clicked);
 				}
 				// Normal
 				{
 					char* name = string_format("hft_general_material_normal_image_box_%u", i);
 					state->hft_general_material_normal_image_boxes[i] = kui_image_box_control_create(state->kui_state, name, (vec2i){imagebox_size, imagebox_size});
 					string_free(name);
+					hf_terrain_material_imagebox_context* context = KALLOC_TYPE(hf_terrain_material_imagebox_context, MEMORY_TAG_EDITOR);
+					context->editor = state;
+					context->material_index = i;
+					context->map = HF_TERRAIN_MATERIAL_MAP_NORMAL;
 					KASSERT(kui_system_control_add_child(kui_state, state->hft_general_content_container, state->hft_general_material_normal_image_boxes[i]));
 					kui_control_position_set(kui_state, state->hft_general_material_normal_image_boxes[i], (vec3){269, i * (imagebox_size + imagebox_padding), 0});
+					kui_control_set_user_data(kui_state, state->hft_general_material_normal_image_boxes[i], sizeof(hf_terrain_material_imagebox_context), context, true, MEMORY_TAG_EDITOR);
+					kui_control_set_on_click(kui_state, state->hft_general_material_normal_image_boxes[i], hft_material_imagebox_clicked);
 				}
 				// MRA
 				{
 					char* name = string_format("hft_general_material_mra_image_box_%u", i);
 					state->hft_general_material_mra_image_boxes[i] = kui_image_box_control_create(state->kui_state, name, (vec2i){imagebox_size, imagebox_size});
 					string_free(name);
+					hf_terrain_material_imagebox_context* context = KALLOC_TYPE(hf_terrain_material_imagebox_context, MEMORY_TAG_EDITOR);
+					context->editor = state;
+					context->material_index = i;
+					context->map = HF_TERRAIN_MATERIAL_MAP_MRA;
 					KASSERT(kui_system_control_add_child(kui_state, state->hft_general_content_container, state->hft_general_material_mra_image_boxes[i]));
 					kui_control_position_set(kui_state, state->hft_general_material_mra_image_boxes[i], (vec3){338, i * (imagebox_size + imagebox_padding), 0});
+					kui_control_set_user_data(kui_state, state->hft_general_material_mra_image_boxes[i], sizeof(hf_terrain_material_imagebox_context), context, true, MEMORY_TAG_EDITOR);
+					kui_control_set_on_click(kui_state, state->hft_general_material_mra_image_boxes[i], hft_material_imagebox_clicked);
 				}
 			}
 
@@ -843,9 +872,11 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname 
 		state->tex_browser_bg_panel = kui_panel_control_create(kui_state, "tex_browser_bg_panel", state->tex_browser_window_size, (vec4){0, 0, 0, 0.8f});
 		KASSERT(kui_system_control_add_child(kui_state, state->editor_root, state->tex_browser_bg_panel));
 		kui_control_position_set(kui_state, state->tex_browser_bg_panel, (vec3){300, 50, 0});
+		kui_control_set_is_active(kui_state, state->tex_browser_bg_panel, false);
+		kui_control_set_is_visible(kui_state, state->tex_browser_bg_panel, false);
 
 		// Window Label
-		state->tex_browser_title = kui_label_control_create(kui_state, "tex_browser_title", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Texture Browser");
+		state->tex_browser_title = kui_label_control_create(kui_state, "tex_browser_title", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Browse Textures");
 		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_title));
 		kui_control_position_set(kui_state, state->tex_browser_title, (vec3){10, -5.0f, 0});
 
@@ -903,6 +934,22 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname 
 
 		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_inspector_label));
 		kui_control_position_set(kui_state, state->tex_inspector_label, (vec3){state->tex_browser_right_col_x + 10, 500, 0});
+
+		// Confirm button.
+		state->tex_browser_confirm_btn = kui_button_control_create_with_text(kui_state, "tex_browser_confirm_btn", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "OK");
+		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_confirm_btn));
+		kui_control_set_user_data(kui_state, state->tex_browser_confirm_btn, sizeof(editor_state), state, false, MEMORY_TAG_EDITOR);
+		kui_button_control_width_set(kui_state, state->tex_browser_confirm_btn, 190);
+		kui_control_position_set(kui_state, state->tex_browser_confirm_btn, (vec3){state->tex_browser_right_col_x + 5, state->tex_browser_window_size.y - 60, 0});
+		kui_control_set_on_click(kui_state, state->tex_browser_confirm_btn, texture_browser_confirm_button_clicked);
+
+		// Cancel button.
+		state->tex_browser_cancel_btn = kui_button_control_create_with_text(kui_state, "tex_browser_cancel_btn", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Cancel");
+		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_cancel_btn));
+		kui_control_set_user_data(kui_state, state->tex_browser_cancel_btn, sizeof(editor_state), state, false, MEMORY_TAG_EDITOR);
+		kui_button_control_width_set(kui_state, state->tex_browser_cancel_btn, 190);
+		kui_control_position_set(kui_state, state->tex_browser_cancel_btn, (vec3){state->tex_browser_right_col_x + 5 + 190 + 5, state->tex_browser_window_size.y - 60, 0});
+		kui_control_set_on_click(kui_state, state->tex_browser_cancel_btn, texture_browser_cancel_button_clicked);
 	}
 	state->is_running = true;
 
@@ -1020,9 +1067,6 @@ b8 editor_open(struct editor_state* state, kname scene_name, kname scene_package
 
 	// Set the default mode.
 	editor_set_mode(state, EDITOR_MODE_SCENE);
-
-	// HACK: This should be done when the texture browser opens.
-	tex_browser_refresh(state);
 
 	return true;
 }
@@ -1961,10 +2005,48 @@ static b8 texture_browser_button_clicked(struct kui_state* state, kui_control se
 	kui_base_control* base = kui_system_get_base(state, self);
 	editor_state* edit_state = base->user_data;
 
-	if (edit_state->mode != EDITOR_MODE_HF_TERRAIN) {
-		/* editor_set_mode(edit_state, EDITOR_MODE_HF_TERRAIN); */
+	b8 is_open = FLAG_GET(edit_state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT);
+	if (is_open) {
+		tex_browser_close(edit_state);
+	} else {
+		tex_browser_open_for_browsing(edit_state);
 	}
+
 	// Don't allow the event to popagate.
+	return false;
+}
+
+static b8 texture_browser_confirm_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
+	kui_base_control* base = kui_system_get_base(state, self);
+	editor_state* edit_state = base->user_data;
+
+	if (FLAG_GET(edit_state->tex_browser_flags, TEXTURE_BROWSER_FLAG_SELECTING_BIT)) {
+		if (edit_state->selected_texture == INVALID_KTEXTURE) {
+			// TODO: Either some sort of error dialog OR to disable the select button until a selection is made.
+			KERROR("No texture is selected, cannot proceed.");
+			return false;
+		}
+		// Issue the callback along with the selected texture.
+		if (edit_state->selected_callback) {
+			edit_state->selected_callback(edit_state->selected_texture, edit_state->tex_browser_context);
+		}
+	}
+
+	// Just close the window.
+	tex_browser_close(edit_state);
+	return false;
+}
+
+static b8 texture_browser_cancel_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
+	kui_base_control* base = kui_system_get_base(state, self);
+	editor_state* edit_state = base->user_data;
+
+	if (edit_state->cancelled_callback) {
+		edit_state->cancelled_callback(edit_state->tex_browser_context);
+	}
+
+	// Just close the window.
+	tex_browser_close(edit_state);
 	return false;
 }
 
@@ -2180,7 +2262,7 @@ static void hf_terrain_paint(editor_state* state, vec3 pos, vec3 normal, const h
 		}
 	}
 
-	texture_write_data(block->splatmap, 32, min_x, min_z, 0, width, height, new_colour);
+	texture_write_data(block->splatmap, 32, min_x, min_z, 0, width, height, new_colour, false);
 
 	KFREE_TYPE_CARRAY(new_colour, u8, total_px * 4);
 }
@@ -3385,6 +3467,52 @@ static b8 hft_save_button_clicked(struct kui_state* state, kui_control self, str
 	return false;
 }
 
+typedef struct hft_tex_browser_context {
+	editor_state* editor;
+	kui_control image_box;
+	u8 material_index;
+	hf_terrain_material_map map;
+} hft_tex_browser_context;
+
+static void hft_tex_browser_selected_callback(ktexture texture, void* context) {
+	hft_tex_browser_context* typed_context = context;
+
+	kui_image_box_control_texture_set(typed_context->editor->kui_state, typed_context->image_box, texture);
+
+	// Update the terrain material listing.
+
+	hf_terrain* terrain = kscene_hf_terrain_get(typed_context->editor->edit_scene);
+	hf_terrain_material_texture_set(terrain, typed_context->material_index, typed_context->map, texture);
+
+	KFREE_TYPE(context, hft_tex_browser_context, MEMORY_TAG_EDITOR);
+}
+static void hft_tex_browser_cancelled_callback(void* context) {
+	/* hft_tex_browser_context* typed_context = context; */
+
+	KFREE_TYPE(context, hft_tex_browser_context, MEMORY_TAG_EDITOR);
+}
+
+static b8 hft_material_imagebox_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
+	hf_terrain_material_imagebox_context* ctrl_context = kui_control_get_user_data(state, self);
+	editor_state* editor = ctrl_context->editor;
+	// Open the texture browser in select mode, passing along a callback with enough context data to
+	// set the texture of the provided imagebox to the selected texture _if_ a selection is made.
+	hft_tex_browser_context* context = KALLOC_TYPE(hft_tex_browser_context, MEMORY_TAG_EDITOR);
+	context->editor = editor;
+	context->image_box = self;
+	context->material_index = ctrl_context->material_index;
+	context->map = ctrl_context->map;
+	tex_browser_open_for_selection(editor, context, hft_tex_browser_selected_callback, hft_tex_browser_cancelled_callback);
+	//
+	// Note that a texture size matching the other terrain materials texture sizes is required.
+	//
+	// In the callback, the image will need to be set in the terrain material listing as well, and loaded into
+	// the array texture on the appropriate layer.
+	//
+	// Ensure that the terrain painting mode editor gets the update.
+	return false;
+}
+
 static void hft_paint_brush_diameter_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt) {
 	if (evt.type == KUI_KEYBOARD_EVENT_TYPE_PRESS) {
 		u16 key_code = evt.key;
@@ -3451,6 +3579,61 @@ static void hft_paint_material_index_textbox_on_key(kui_state* state, kui_contro
 			}
 		}
 	}
+}
+
+static void tex_browser_open_internal(editor_state* state) {
+	// Activate/set visible the tex browser bg panel
+	kui_control_set_is_active(state->kui_state, state->tex_browser_bg_panel, true);
+	kui_control_set_is_visible(state->kui_state, state->tex_browser_bg_panel, true);
+
+	tex_browser_refresh(state);
+
+	if (FLAG_GET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_SELECTING_BIT)) {
+		kui_label_text_set(state->kui_state, state->tex_browser_title, "Select a Texture");
+		// TODO: show additional selection controls (i.e. ok/cancel buttons, maybe a label at the top of the window?)
+
+	} else {
+		kui_label_text_set(state->kui_state, state->tex_browser_title, "Browse Textures");
+		// TODO: ensure selection-only controls are not shown.
+	}
+}
+
+static void tex_browser_open_for_browsing(editor_state* state) {
+	if (FLAG_GET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT)) {
+		KWARN("The texture browser is already open");
+		return;
+	}
+
+	state->tex_browser_flags = TEXTURE_BROWSER_FLAG_NONE;
+	FLAG_SET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT, true);
+
+	tex_browser_open_internal(state);
+}
+static void tex_browser_open_for_selection(editor_state* state, void* context, PFN_tex_browser_selected_callback selected_callback, PFN_tex_browser_cancelled_callback cancelled_callback) {
+	if (FLAG_GET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT)) {
+		KWARN("The texture browser is already open");
+		return;
+	}
+
+	state->tex_browser_flags = TEXTURE_BROWSER_FLAG_NONE;
+	FLAG_SET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT, true);
+	FLAG_SET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_SELECTING_BIT, true);
+
+	state->tex_browser_context = context;
+	state->selected_callback = selected_callback;
+	state->cancelled_callback = cancelled_callback;
+
+	tex_browser_open_internal(state);
+}
+static void tex_browser_close(editor_state* state) {
+	// Activate/set visible the tex browser bg panel
+	kui_control_set_is_active(state->kui_state, state->tex_browser_bg_panel, false);
+	kui_control_set_is_visible(state->kui_state, state->tex_browser_bg_panel, false);
+	FLAG_SET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT, false);
+
+	state->tex_browser_context = KNULL;
+	state->selected_callback = KNULL;
+	state->cancelled_callback = KNULL;
 }
 
 static void tex_browser_refresh(editor_state* state) {
@@ -3569,7 +3752,7 @@ static void tex_browser_refresh(editor_state* state) {
 		// HACK: hardcoded pos to first selection - need to calculate based on selected index.
 		kui_control_position_set(kui_state, state->tex_browser_selected_frame, (vec3){0, 0, 0});
 
-		state->selected_texture = first_element_data->texture_name;
+		state->selected_texture = first_element_data->texture;
 		kui_image_box_control_texture_set_by_name(kui_state, state->tex_inspector_preview_imagebox, first_element_data->texture_name, INVALID_KNAME);
 
 		const char* tex_data_str = string_format(
@@ -3586,7 +3769,7 @@ static void tex_browser_refresh(editor_state* state) {
 	} else {
 
 		// No textures available, thus no selection can be made.
-		state->selected_texture = INVALID_KNAME;
+		state->selected_texture = INVALID_KTEXTURE;
 		kui_image_box_control_texture_set_by_name(kui_state, state->tex_inspector_preview_imagebox, kname_create(DEFAULT_TEXTURE_NAME), INVALID_KNAME);
 
 		const char* tex_data_str = string_format(
@@ -3652,6 +3835,8 @@ static b8 tex_browser_imagebox_clicked(struct kui_state* state, kui_control self
 
 	kui_base_control* selection_frame = kui_system_get_base(state, element_data->editor->tex_browser_selected_frame);
 	ktransform_position_set(selection_frame->ktransform, pos);
+
+	element_data->editor->selected_texture = element_data->texture;
 
 	KTRACE("Texture selected '%k' (width=%u, height=%u).", element_data->texture_name, element_data->properties.width, element_data->properties.height);
 

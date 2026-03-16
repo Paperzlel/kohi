@@ -66,6 +66,17 @@ typedef enum hf_terrain_elevation_edit_mode {
 	HF_TERRAIN_ELEVATION_EDIT_MODE_COUNT
 } hf_terrain_elevation_edit_mode;
 
+typedef void (*PFN_tex_browser_selected_callback)(ktexture texture, void* context);
+typedef void (*PFN_tex_browser_cancelled_callback)(void* context);
+
+typedef enum texture_browser_flag_bits {
+	TEXTURE_BROWSER_FLAG_NONE = 0,
+	TEXTURE_BROWSER_FLAG_OPEN_BIT = 1 << 0,
+	TEXTURE_BROWSER_FLAG_SELECTING_BIT = 1 << 1
+} texture_browser_flag_bits;
+
+typedef u32 texture_browser_flags;
+
 typedef struct editor_state {
 	kname game_package_name;
 	// Editor camera
@@ -223,6 +234,7 @@ typedef struct editor_state {
 	kui_control hft_elevation_diameter_label;
 	kui_control hft_elevation_amount_label;
 
+	// Texture browser
 	kui_control tex_browser_bg_panel;
 	vec2 tex_browser_window_size;
 	kui_control tex_browser_title;
@@ -244,9 +256,15 @@ typedef struct editor_state {
 	vec2 tex_tile_size;
 	// The currently-selected texture in the texture browser.
 	ktexture selected_texture;
+	texture_browser_flags tex_browser_flags;
+	void* tex_browser_context;
+	PFN_tex_browser_selected_callback selected_callback;
+	PFN_tex_browser_cancelled_callback cancelled_callback;
 
 	kui_control tex_inspector_preview_imagebox;
 	kui_control tex_inspector_label;
+	kui_control tex_browser_confirm_btn;
+	kui_control tex_browser_cancel_btn;
 
 } editor_state;
 

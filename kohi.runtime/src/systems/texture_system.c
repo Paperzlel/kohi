@@ -475,7 +475,8 @@ ktexture texture_acquire_with_options(ktexture_load_options options, void* liste
 			-1,
 			state_ptr->widths[t],
 			state_ptr->heights[t],
-			options.pixel_data);
+			options.pixel_data,
+			false);
 
 		if (!write_result) {
 			KERROR("%s - Failed to write texture data resource '%s'.", __FUNCTION__, options.image_asset_name);
@@ -646,7 +647,8 @@ ktexture texture_acquire_with_options_sync(ktexture_load_options options) {
 			-1,
 			state_ptr->widths[t],
 			state_ptr->heights[t],
-			all_pixels);
+			all_pixels,
+			false);
 
 		if (!write_result) {
 			KERROR("%s - Failed to write texture data resource '%s'.", __FUNCTION__, options.image_asset_name);
@@ -707,11 +709,43 @@ b8 texture_resize(ktexture t, u32 width, u32 height, b8 regenerate_internal_data
 	return false;
 }
 
-b8 texture_write_data(ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, void* data) {
+b8 texture_write_data(ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, void* data, b8 defer_to_next_frame) {
 	if (t) {
-		return renderer_texture_write_data(state_ptr->renderer, t, bpp, px_x, px_y, layer, width, height, data);
+		return renderer_texture_write_data(state_ptr->renderer, t, bpp, px_x, px_y, layer, width, height, data, defer_to_next_frame);
 	}
 	return false;
+}
+
+b8 texture_set_layer_data_from_texture(ktexture dest, u16 layer, ktexture src) {
+	KASSERT(dest != INVALID_KTEXTURE && src != INVALID_KTEXTURE);
+
+	// TODO: 3D array?
+	KASSERT(state_ptr->types[dest] == KTEXTURE_TYPE_2D_ARRAY);
+	KASSERT(layer < state_ptr->array_sizes[dest]);
+
+	u32 src_width = state_ptr->widths[src];
+	u32 src_height = state_ptr->heights[src];
+
+	KASSERT(state_ptr->widths[dest] == src_width);
+	KASSERT(state_ptr->heights[dest] == src_height);
+
+	// FIXME: Assuming RGBA/32bpp
+	u32 size = state_ptr->widths[src] * state_ptr->heights[src] * 4;
+	u8* pixel_data = kallocate(size, MEMORY_TAG_TEXTURE);
+	if (renderer_texture_read_data(engine_systems_get()->renderer_system, src, 0, size, &pixel_data)) {
+
+		// Write pixel_data to dest
+		// FIXME: assuming 32bpp
+		if (!texture_write_data(dest, 32, 0, 0, (i32)layer, src_width, src_height, pixel_data, false)) {
+			KERROR("%s - Failed to write texture layer data to dest texture", __FUNCTION__);
+			return false;
+		}
+	} else {
+		KERROR("%s - Failed to set texture layer data", __FUNCTION__);
+		return false;
+	}
+
+	return true;
 }
 
 static b8 texture_is_default(texture_system_state* state, ktexture t) {
@@ -1347,7 +1381,8 @@ static b8 texture_apply_asset_data(ktexture t, kname name, const ktexture_load_o
 		-1,
 		state_ptr->widths[t],
 		state_ptr->heights[t],
-		all_pixels);
+		all_pixels,
+		false);
 
 	if (!write_result) {
 		KERROR("%s - Failed to write texture data resource '%s'.", __FUNCTION__, kname_string_get(name));

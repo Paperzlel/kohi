@@ -2016,7 +2016,7 @@ b8 vulkan_renderer_texture_resize(renderer_backend_interface* backend, ktexture 
 	return true;
 }
 
-b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, const u8* pixels, b8 include_in_frame_workload) {
+b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktexture t, u32 bpp, u32 px_x, u32 px_y, i32 layer, u32 width, u32 height, const u8* pixels, b8 defer_to_next_frame) {
 
 	KASSERT_DEBUG_MSG(t != INVALID_KTEXTURE, "Invalid texture handle passed.");
 	vulkan_context* context = (vulkan_context*)backend->internal_context;
@@ -2025,7 +2025,7 @@ b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktext
 
 	// If no window, can't include in a frame workload.
 	if (!context->current_window) {
-		include_in_frame_workload = false;
+		defer_to_next_frame = false;
 	}
 
 	// Temporary command buffer, if needed.
@@ -2037,7 +2037,7 @@ b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktext
 	vulkan_command_buffer* command_buffer = 0;
 	u32 depth = texture->images[0].layer_count;
 	u64 size = width * height * (depth ? depth : 1) * (bpp / 8);
-	if (include_in_frame_workload) {
+	if (defer_to_next_frame) {
 		// Including in the frame workload means the current window's current-frame staging buffer can be used.
 		u32 current_frame = context->current_window->renderer_state->backend_state->current_frame;
 		staging = context->current_window->renderer_state->backend_state->staging[current_frame];
@@ -2052,13 +2052,13 @@ b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktext
 
 		// Staging buffer.
 		u64 staging_offset = 0;
-		if (include_in_frame_workload) {
+		if (defer_to_next_frame) {
 			// If including in frame workload, space needs to be allocated from the buffer.
 			renderer_renderbuffer_allocate(backend->frontend_state, staging, size, &staging_offset);
 		}
 
 		// Results in a wait if not included in frame workload.
-		vulkan_buffer_load_range(backend, staging, staging_offset, size, pixels, include_in_frame_workload);
+		vulkan_buffer_load_range(backend, staging, staging_offset, size, pixels, defer_to_next_frame);
 
 		// Need a temp command buffer if not included in frame workload.
 		// HACK: Not doing this breaks things...
@@ -2094,7 +2094,7 @@ b8 vulkan_renderer_texture_write_data(renderer_backend_interface* backend, ktext
 		// }
 	}
 
-	if (!include_in_frame_workload) {
+	if (!defer_to_next_frame) {
 		renderer_renderbuffer_destroy(backend->frontend_state, staging);
 
 		// Counts as a texture update. The texture generation here can only really be updated if
@@ -2135,7 +2135,7 @@ static b8 texture_read_offset_range(
 			width = image->width;
 			height = image->height;
 		} else {
-			// NOTE: Assuming RGBA/8bpp
+			// FIXME: Assuming RGBA/8bpp
 			size = image->width * image->height * 4 * sizeof(u8);
 		}
 
@@ -2162,7 +2162,7 @@ static b8 texture_read_offset_range(
 
 		// Transition from optimal for data reading to shader-read-only optimal layout.
 		// TODO: Should probably cache the previous layout and transfer back to that instead.
-		vulkan_image_transition_layout(context, &temp_buffer, image, image->format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		vulkan_image_transition_layout(context, &temp_buffer, image, image->format, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 		vulkan_command_buffer_end_single_use(context, pool, &temp_buffer, queue);
 
