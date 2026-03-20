@@ -127,31 +127,30 @@ kui_control kui_textbox_control_create(kui_state* state, const char* name, font_
 	base->bounds.width = typed_control->size.x;
 	base->bounds.height = typed_control->size.y;
 	// Setup textbox clipping mask geometry.
-	base->clip_mask.reference_id = 1; // TODO: move creation/reference_id assignment.
+	base->clipping_area.type = KUI_CLIP_TYPE_SCISSOR;
+	vec3 pos = ktransform_world_position_get(base->ktransform);
+	base->clipping_area.scissor_data.clipping_area = (rect_2di){
+		.x = pos.x,
+		.y = pos.y,
+		.width = typed_control->size.x - (corner_size.x * 2),
+		.height = typed_control->size.y};
 
+	// NOTE: If wanting to use stencil buffer for clipping, use the below instead.
+	/* base->clipping_area.stencil_data.reference_id = 1;
 	kgeometry quad = geometry_generate_quad(typed_control->size.x - (corner_size.x * 2), typed_control->size.y, 0, 0, 0, 0, kname_create("textbox_clipping_box"));
 	KASSERT(renderer_geometry_upload(&quad));
-
-	base->clip_mask.clip_geometry = quad;
-
-	base->clip_mask.render_data.model = mat4_identity();
-	// FIXME: Convert this to generate just verts/indices, and upload via the new
-	// renderer api functions instead of deprecated geometry functions.
-	base->clip_mask.render_data.unique_id = base->clip_mask.reference_id;
-
-	base->clip_mask.render_data.vertex_count = base->clip_mask.clip_geometry.vertex_count;
-	base->clip_mask.render_data.vertex_element_size = base->clip_mask.clip_geometry.vertex_element_size;
-	base->clip_mask.render_data.vertex_buffer_offset = base->clip_mask.clip_geometry.vertex_buffer_offset;
-
-	base->clip_mask.render_data.index_count = base->clip_mask.clip_geometry.index_count;
-	base->clip_mask.render_data.index_element_size = base->clip_mask.clip_geometry.index_element_size;
-	base->clip_mask.render_data.index_buffer_offset = base->clip_mask.clip_geometry.index_buffer_offset;
-
-	base->clip_mask.render_data.diffuse_colour = vec4_zero(); // transparent;
-
-	base->clip_mask.clip_ktransform = ktransform_from_position((vec3){corner_size.x, 0.0f, 0.0f}, 0);
-
-	ktransform_parent_set(base->clip_mask.clip_ktransform, base->ktransform);
+	base->clipping_area.stencil_data.geometry = quad;
+	base->clipping_area.stencil_data.render_data.model = mat4_identity();
+	base->clipping_area.stencil_data.render_data.unique_id = base->clipping_area.stencil_data.reference_id;
+	base->clipping_area.stencil_data.render_data.vertex_count = base->clipping_area.stencil_data.geometry.vertex_count;
+	base->clipping_area.stencil_data.render_data.vertex_element_size = base->clipping_area.stencil_data.geometry.vertex_element_size;
+	base->clipping_area.stencil_data.render_data.vertex_buffer_offset = base->clipping_area.stencil_data.geometry.vertex_buffer_offset;
+	base->clipping_area.stencil_data.render_data.index_count = base->clipping_area.stencil_data.geometry.index_count;
+	base->clipping_area.stencil_data.render_data.index_element_size = base->clipping_area.stencil_data.geometry.index_element_size;
+	base->clipping_area.stencil_data.render_data.index_buffer_offset = base->clipping_area.stencil_data.geometry.index_buffer_offset;
+	base->clipping_area.stencil_data.render_data.diffuse_colour = vec4_zero(); // transparent;
+	base->clipping_area.stencil_data.transform = ktransform_from_position((vec3){corner_size.x, 0.0f, 0.0f}, 0);
+	ktransform_parent_set(base->clipping_area.stencil_data.transform, base->ktransform); */
 
 	// Acquire group resources for this control.
 	kshader kui_shader = kshader_system_get(kname_create(KUI_SHADER_NAME), kname_create(PACKAGE_NAME_KUI));
@@ -216,8 +215,10 @@ void kui_textbox_control_destroy(kui_state* state, kui_control* self) {
 	nine_slice_destroy(&typed_control->nslice);
 	nine_slice_destroy(&typed_control->focused_nslice);
 
-	renderer_geometry_destroy(&base->clip_mask.clip_geometry);
-	geometry_destroy(&base->clip_mask.clip_geometry);
+	if (base->clipping_area.type == KUI_CLIP_TYPE_STENCIL) {
+		renderer_geometry_destroy(&base->clipping_area.stencil_data.geometry);
+		geometry_destroy(&base->clipping_area.stencil_data.geometry);
+	}
 
 	kfree(typed_control->listener, sizeof(kui_textbox_event_listener), MEMORY_TAG_UI);
 
@@ -242,17 +243,27 @@ b8 kui_textbox_control_size_set(kui_state* state, kui_control self, i32 width, i
 	nine_slice_update(&typed_control->nslice, 0);
 	nine_slice_update(&typed_control->focused_nslice, 0);
 
-	kgeometry* vg = &base->clip_mask.clip_geometry;
 	// HACK: TODO: remove hardcoded stuff.
 	vec2i corner_size = (vec2i){10, 10};
 
-	kgeometry quad = geometry_generate_quad(typed_control->size.x - (corner_size.x * 2), typed_control->size.y, 0, 0, 0, 0, 0);
-	kfree(quad.indices, quad.index_element_size * quad.index_count, MEMORY_TAG_ARRAY);
-	kfree(vg->vertices, vg->vertex_element_size * vg->vertex_count, MEMORY_TAG_ARRAY);
-	vg->vertices = quad.vertices;
-	vg->extents = quad.extents;
+	if (base->clipping_area.type == KUI_CLIP_TYPE_STENCIL) {
+		kgeometry* vg = &base->clipping_area.stencil_data.geometry;
 
-	renderer_geometry_vertex_update(&base->clip_mask.clip_geometry, 0, vg->vertex_count, vg->vertices, false);
+		kgeometry quad = geometry_generate_quad(typed_control->size.x - (corner_size.x * 2), typed_control->size.y, 0, 0, 0, 0, 0);
+		kfree(quad.indices, quad.index_element_size * quad.index_count, MEMORY_TAG_ARRAY);
+		kfree(vg->vertices, vg->vertex_element_size * vg->vertex_count, MEMORY_TAG_ARRAY);
+		vg->vertices = quad.vertices;
+		vg->extents = quad.extents;
+
+		renderer_geometry_vertex_update(&base->clipping_area.stencil_data.geometry, 0, vg->vertex_count, vg->vertices, false);
+	} else {
+		vec3 pos = ktransform_world_position_get(base->ktransform);
+		base->clipping_area.scissor_data.clipping_area = (rect_2di){
+			.x = pos.x,
+			.y = pos.y,
+			.width = typed_control->size.x - (corner_size.x * 2),
+			.height = typed_control->size.y};
+	}
 
 	return true;
 }
@@ -345,7 +356,16 @@ b8 kui_textbox_control_render(kui_state* state, kui_control self, struct frame_d
 
 	FLAG_SET(cursor_base->flags, KUI_CONTROL_FLAG_VISIBLE_BIT, is_focused);
 
-	base->clip_mask.render_data.model = ktransform_world_get(base->clip_mask.clip_ktransform);
+	if (base->clipping_area.type == KUI_CLIP_TYPE_STENCIL) {
+		base->clipping_area.stencil_data.render_data.model = ktransform_world_get(base->clipping_area.stencil_data.transform);
+	} else if (base->clipping_area.type == KUI_CLIP_TYPE_SCISSOR) {
+		vec3 pos = ktransform_world_position_get(base->ktransform);
+		base->clipping_area.scissor_data.clipping_area = (rect_2di){
+			.x = pos.x + typed_control->nslice.corner_size.x,
+			.y = pos.y,
+			.width = typed_control->size.x - (typed_control->nslice.corner_size.x * 2),
+			.height = typed_control->size.y};
+	}
 
 	/* kgeometry* vg = &typed_control->clip_mask.clip_geometry; */
 

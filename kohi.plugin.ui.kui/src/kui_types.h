@@ -22,16 +22,19 @@ typedef struct {
 
 typedef enum kui_renderable_type {
 	KUI_RENDERABLE_TYPE_CONTROL,
-	KUI_RENDERABLE_TYPE_CLIP_BEGIN,
-	KUI_RENDERABLE_TYPE_CLIP_END
+	KUI_RENDERABLE_TYPE_STENCIL_CLIP_BEGIN,
+	KUI_RENDERABLE_TYPE_STENCIL_CLIP_END,
+	KUI_RENDERABLE_TYPE_SCISSOR_CLIP_BEGIN,
+	KUI_RENDERABLE_TYPE_SCISSOR_CLIP_END
 } kui_renderable_type;
 
 typedef struct kui_renderable {
+	kui_renderable_type type;
 	// The per-control instance binding id for binding set 1.
 	u32 binding_instance_id;
 	ktexture atlas_override;
-	kui_renderable_type type;
 	geometry_render_data render_data;
+	rect_2di clipping_area;
 } kui_renderable;
 
 typedef struct kui_render_data {
@@ -85,12 +88,29 @@ typedef struct kui_checkbox_event {
 	b8 checked;
 } kui_checkbox_event;
 
+typedef enum kui_clip_type {
+	KUI_CLIP_TYPE_NONE,
+	KUI_CLIP_TYPE_STENCIL,
+	// Cheaper than stencil clipping, but limited to axis-aligned rectangle.
+	// Applying rotation will break this.
+	KUI_CLIP_TYPE_SCISSOR
+} kui_clip_type;
+
 typedef struct kui_clip_mask {
-	u32 reference_id;
-	ktransform clip_ktransform;
-	kgeometry clip_geometry;
-	geometry_render_data render_data;
-} kui_clip_mask;
+	kui_clip_type type;
+
+	union {
+		struct {
+			u32 reference_id;
+			ktransform transform;
+			kgeometry geometry;
+			geometry_render_data render_data;
+		} stencil_data;
+		struct {
+			rect_2di clipping_area;
+		} scissor_data;
+	};
+} kui_clipping_area;
 
 typedef enum kui_control_flag_bits {
 	KUI_CONTROL_FLAG_NONE = 0,
@@ -147,7 +167,7 @@ typedef struct kui_base_control {
 
 	rect_2d bounds;
 
-	kui_clip_mask clip_mask;
+	kui_clipping_area clipping_area;
 
 	kui_control parent;
 	// darray

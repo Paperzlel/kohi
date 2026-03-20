@@ -510,7 +510,7 @@ void renderer_viewport_reset(void) {
 
 void renderer_scissor_set(rect_2di rect) {
 	if (rect.width == 0 || rect.height == 0) {
-		KERROR("%s: width/height should not be zero");
+		KERROR("%s: width/height should not be zero", __FUNCTION__);
 	}
 	renderer_system_state* state_ptr = engine_systems_get()->renderer_system;
 	state_ptr->backend->scissor_set(state_ptr->backend, rect);

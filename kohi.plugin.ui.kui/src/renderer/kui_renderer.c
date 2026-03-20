@@ -112,8 +112,8 @@ b8 kui_renderer_render_frame(kui_renderer* renderer, frame_data* p_frame_data, k
 		kshader_set_binding_sampler(renderer->kui_pass.kui_shader, 1, renderable->binding_instance_id, 1, 0, samp);
 		kshader_apply_binding_set(renderer->kui_pass.kui_shader, 1, renderable->binding_instance_id);
 
-		// Render clipping mask geometry if it exists.
-		if (renderable->type == KUI_RENDERABLE_TYPE_CLIP_BEGIN) {
+		// Render stencil clipping mask geometry if it exists.
+		if (renderable->type == KUI_RENDERABLE_TYPE_STENCIL_CLIP_BEGIN) {
 			KASSERT(!clip_mask_active);
 			clip_mask_active = true;
 			renderer_begin_debug_label("clip_mask", (vec3){0, 1, 0});
@@ -126,9 +126,9 @@ b8 kui_renderer_render_frame(kui_renderer* renderer, frame_data* p_frame_data, k
 			stencil_reference_id++;
 			renderer_set_stencil_write_mask(0xFF);
 			renderer_set_stencil_op(
+				RENDERER_STENCIL_OP_KEEP, // replace
 				RENDERER_STENCIL_OP_REPLACE,
-				RENDERER_STENCIL_OP_REPLACE,
-				RENDERER_STENCIL_OP_REPLACE,
+				RENDERER_STENCIL_OP_KEEP, // replace
 				RENDERER_COMPARE_OP_ALWAYS);
 
 			renderer_clear_depth_set(renderer->renderer_state, 1.0f);
@@ -151,7 +151,7 @@ b8 kui_renderer_render_frame(kui_renderer* renderer, frame_data* p_frame_data, k
 			renderer_set_stencil_compare_mask(0xFF);
 			renderer_set_stencil_op(
 				RENDERER_STENCIL_OP_KEEP,
-				RENDERER_STENCIL_OP_REPLACE,
+				RENDERER_STENCIL_OP_KEEP, // replace
 				RENDERER_STENCIL_OP_KEEP,
 				RENDERER_COMPARE_OP_EQUAL);
 			renderer_end_debug_label();
@@ -159,6 +159,11 @@ b8 kui_renderer_render_frame(kui_renderer* renderer, frame_data* p_frame_data, k
 			 renderer_set_stencil_write_mask(0x00);
 			 renderer_set_stencil_test_enabled(false);
 		 } */
+
+		// Use the scissor clipping area if it exists.
+		if (renderable->type == KUI_RENDERABLE_TYPE_SCISSOR_CLIP_BEGIN) {
+			renderer_scissor_set(renderable->clipping_area);
+		}
 
 		// Now render the actual renderable.
 		if (renderable->type == KUI_RENDERABLE_TYPE_CONTROL) {
@@ -174,7 +179,7 @@ b8 kui_renderer_render_frame(kui_renderer* renderer, frame_data* p_frame_data, k
 		}
 
 		// Turn off stencil tests if they were on.
-		if (renderable->type == KUI_RENDERABLE_TYPE_CLIP_END) {
+		if (renderable->type == KUI_RENDERABLE_TYPE_STENCIL_CLIP_END) {
 			KASSERT(clip_mask_active);
 			clip_mask_active = false;
 			// Turn off stencil testing.
@@ -184,6 +189,13 @@ b8 kui_renderer_render_frame(kui_renderer* renderer, frame_data* p_frame_data, k
 				RENDERER_STENCIL_OP_KEEP,
 				RENDERER_STENCIL_OP_KEEP,
 				RENDERER_COMPARE_OP_ALWAYS);
+		}
+
+		// Ensure scissor is reset.
+		if (renderable->type == KUI_RENDERABLE_TYPE_SCISSOR_CLIP_END) {
+			/* renderer_scissor_reset(); */
+			rect_2di scissor_rect = {vp_rect.x, vp_rect.y, vp_rect.width, vp_rect.height};
+			renderer_scissor_set(scissor_rect);
 		}
 	} // renderables
 
@@ -196,6 +208,11 @@ b8 kui_renderer_render_frame(kui_renderer* renderer, frame_data* p_frame_data, k
 			RENDERER_STENCIL_OP_KEEP,
 			RENDERER_STENCIL_OP_KEEP,
 			RENDERER_COMPARE_OP_ALWAYS);
+
+		// Ensure scissor is reset.
+		/* renderer_scissor_reset(); */
+		rect_2di scissor_rect = {vp_rect.x, vp_rect.y, vp_rect.width, vp_rect.height};
+		renderer_scissor_set(scissor_rect);
 	}
 
 	// SUI end render.

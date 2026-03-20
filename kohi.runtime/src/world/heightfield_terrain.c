@@ -11,6 +11,7 @@
 #include "renderer/renderer_types.h"
 #include "runtime_defines.h"
 #include "strings/kname.h"
+#include "strings/kstring_id.h"
 #include "systems/kshader_system.h"
 #include "systems/texture_system.h"
 #include <debug/kassert.h>
@@ -413,6 +414,7 @@ hf_terrain hf_terrain_create_from_asset(const kasset_hf_terrain* asset) {
 
 	// Setup materials.
 	for (u8 i = 0; i < HF_TERRAIN_MAX_MATERIALS; ++i) {
+		t.material_names[i] = INVALID_KSTRING_ID;
 		t.albedo_asset_names[i] = INVALID_KNAME;
 		t.albedo_package_names[i] = INVALID_KNAME;
 		t.normal_asset_names[i] = INVALID_KNAME;
@@ -423,9 +425,10 @@ hf_terrain hf_terrain_create_from_asset(const kasset_hf_terrain* asset) {
 
 	t.material_count = asset->material_count;
 	for (u8 i = 0; i < t.material_count; ++i) {
-		t.albedo_asset_names[i] = kname_create(asset->material_names[i].albedo_str);
-		t.normal_asset_names[i] = kname_create(asset->material_names[i].normal_str);
-		t.mra_asset_names[i] = kname_create(asset->material_names[i].mra_str);
+		t.material_names[i] = kstring_id_create(asset->material_names[i]);
+		t.albedo_asset_names[i] = kname_create(asset->material_map_names[i].albedo_str);
+		t.normal_asset_names[i] = kname_create(asset->material_map_names[i].normal_str);
+		t.mra_asset_names[i] = kname_create(asset->material_map_names[i].mra_str);
 	}
 
 	t.albedo_texture_array = texture_acquire_layered_sync(kname_create("hf_terrain_albedo_tex_array"), HF_TERRAIN_MAX_MATERIALS, t.albedo_asset_names, t.albedo_package_names);
@@ -590,12 +593,18 @@ void hf_terrain_material_texture_set(hf_terrain* t, u8 material_index, hf_terrai
 	switch (map) {
 	case HF_TERRAIN_MATERIAL_MAP_ALBEDO:
 		array_texture = t->albedo_texture_array;
+		t->albedo_asset_names[material_index] = texture_name_get(texture);
+		// TODO: package name
 		break;
 	case HF_TERRAIN_MATERIAL_MAP_NORMAL:
 		array_texture = t->normal_texture_array;
+		t->normal_asset_names[material_index] = texture_name_get(texture);
+		// TODO: package name
 		break;
 	case HF_TERRAIN_MATERIAL_MAP_MRA:
 		array_texture = t->mra_texture_array;
+		t->mra_asset_names[material_index] = texture_name_get(texture);
+		// TODO: package name
 		break;
 	}
 

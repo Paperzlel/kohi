@@ -1,5 +1,6 @@
 #pragma once
 
+#include "editor/texture_browser.h"
 #include "kui_types.h"
 #include "math/math_types.h"
 #include "systems/texture_system.h"
@@ -65,17 +66,6 @@ typedef enum hf_terrain_elevation_edit_mode {
 	HF_TERRAIN_ELEVATION_EDIT_MODE_SMOOTH,
 	HF_TERRAIN_ELEVATION_EDIT_MODE_COUNT
 } hf_terrain_elevation_edit_mode;
-
-typedef void (*PFN_tex_browser_selected_callback)(ktexture texture, void* context);
-typedef void (*PFN_tex_browser_cancelled_callback)(void* context);
-
-typedef enum texture_browser_flag_bits {
-	TEXTURE_BROWSER_FLAG_NONE = 0,
-	TEXTURE_BROWSER_FLAG_OPEN_BIT = 1 << 0,
-	TEXTURE_BROWSER_FLAG_SELECTING_BIT = 1 << 1
-} texture_browser_flag_bits;
-
-typedef u32 texture_browser_flags;
 
 typedef struct editor_state {
 	kname game_package_name;
@@ -214,7 +204,12 @@ typedef struct editor_state {
 	kui_control hft_paint_material_index_label;
 
 	kui_control hft_mode_elevation_content;
+
 	kui_control hft_mode_chunk_content;
+	kui_control hft_chunk_material_labels[5];
+	kui_control hft_chunk_material_textboxes[5];
+	hf_chunk* selected_chunk;
+
 	kui_control hft_mode_remove_content;
 
 	// HF Paint state
@@ -235,45 +230,9 @@ typedef struct editor_state {
 	kui_control hft_elevation_amount_label;
 
 	// Texture browser
-	kui_control tex_browser_bg_panel;
-	vec2 tex_browser_window_size;
-	kui_control tex_browser_title;
-	vec2i tex_browser_min_size;
-	f32 tex_browser_right_col_x;
-	kui_control tex_browser_search_label;
-	kui_control tex_browser_search_textbox;
-	kui_control tex_browser_search_game_pack_only_checkbox;
-	kname tex_browser_search_package_name;
-	kui_control tex_browser_scrollable_control;
-	kui_control tex_browser_content_container;
-	u32 tex_browser_tex_count;
-	char* tex_browser_search_text;
-	kui_control* tex_browser_image_boxes;
-	kui_control* tex_browser_labels;
-	kui_control tex_browser_selected_frame;
-	f32 imagebox_size;
-	f32 imagebox_padding;
-	vec2 tex_tile_size;
-	// The currently-selected texture in the texture browser.
-	ktexture selected_texture;
-	texture_browser_flags tex_browser_flags;
-	void* tex_browser_context;
-	PFN_tex_browser_selected_callback selected_callback;
-	PFN_tex_browser_cancelled_callback cancelled_callback;
-
-	kui_control tex_inspector_preview_imagebox;
-	kui_control tex_inspector_label;
-	kui_control tex_browser_confirm_btn;
-	kui_control tex_browser_cancel_btn;
+	texture_browser tex_browser;
 
 } editor_state;
-
-typedef struct tex_browser_element_data {
-	struct editor_state* editor;
-	kname texture_name;
-	ktexture texture;
-	ktexture_properties properties;
-} tex_browser_element_data;
 
 KAPI b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname gmae_package_name);
 KAPI void editor_shutdown(struct editor_state* state);

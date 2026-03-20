@@ -45,14 +45,17 @@ KAPI b8 kasset_hf_terrain_deserialize(u64 size, const void* in_block, kasset_hf_
 
 	binary_string_table string_table = binary_string_table_from_block((((u8*)in_block) + offset));
 
-	out_asset->material_names = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material_names, out_asset->material_count);
+	out_asset->material_names = KALLOC_TYPE_CARRAY(const char*, out_asset->material_count);
+	out_asset->material_map_names = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material_map_names, out_asset->material_count);
 	for (u8 i = 0; i < out_asset->material_count; ++i) {
 		kasset_hf_terrain_material* m = &out_asset->materials[i];
-		kasset_hf_terrain_material_names* n = &out_asset->material_names[i];
+		kasset_hf_terrain_material_map_names* n = &out_asset->material_map_names[i];
 
 		n->albedo_str = binary_string_table_get(&string_table, m->albedo_str_index);
 		n->normal_str = binary_string_table_get(&string_table, m->normal_str_index);
 		n->mra_str = binary_string_table_get(&string_table, m->mra_str_index);
+
+		out_asset->material_names[i] = binary_string_table_get(&string_table, m->name_str_index);
 	}
 
 	binary_string_table_destroy(&string_table);
@@ -88,11 +91,12 @@ KAPI void* kasset_hf_terrain_serialize(const kasset_hf_terrain* asset, u64* out_
 
 	for (u8 i = 0; i < asset->material_count; ++i) {
 		kasset_hf_terrain_material* m = &asset->materials[i];
-		kasset_hf_terrain_material_names* n = &asset->material_names[i];
+		kasset_hf_terrain_material_map_names* mn = &asset->material_map_names[i];
 
-		m->albedo_str_index = binary_string_table_add(&string_table, n->albedo_str);
-		m->normal_str_index = binary_string_table_add(&string_table, n->normal_str);
-		m->mra_str_index = binary_string_table_add(&string_table, n->mra_str);
+		m->name_str_index = binary_string_table_add(&string_table, asset->material_names[i]);
+		m->albedo_str_index = binary_string_table_add(&string_table, mn->albedo_str);
+		m->normal_str_index = binary_string_table_add(&string_table, mn->normal_str);
+		m->mra_str_index = binary_string_table_add(&string_table, mn->mra_str);
 	}
 
 	// Tell the header where the string table should begin.

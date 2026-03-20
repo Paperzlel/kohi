@@ -56,6 +56,7 @@ typedef enum kscene_flag_bits {
 typedef u32 kscene_flags;
 
 typedef struct hf_terrain_material_data {
+	kstring_id name;
 	kname albedo_asset_name;
 	kname albedo_asset_package_name;
 	kname normal_asset_name;

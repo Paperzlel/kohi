@@ -4,7 +4,6 @@
 #include "audio/audio_frontend.h"
 #include "controls/checkbox_control.h"
 #include "controls/image_box_control.h"
-#include "controls/kui_frame.h"
 #include "controls/kui_scrollable.h"
 #include "controls/kui_tree_item.h"
 #include "core/event.h"
@@ -14,6 +13,7 @@
 #include "debug/kassert.h"
 #include "defines.h"
 #include "editor/editor_gizmo.h"
+#include "editor/texture_browser.h"
 #include "input_types.h"
 #include "kui_system.h"
 #include "kui_types.h"
@@ -25,15 +25,14 @@
 #include "runtime_defines.h"
 #include "strings/kname.h"
 #include "strings/kstring.h"
+#include "strings/kstring_id.h"
 #include "systems/asset_system.h"
 #include "systems/font_system.h"
 #include "systems/kcamera_system.h"
 #include "systems/kshader_system.h"
-#include "systems/ktransform_system.h"
 #include "systems/plugin_system.h"
 #include "systems/texture_system.h"
 #include "utils/kcolour.h"
-#include "utils/render_type_utils.h"
 #include "utils_plugin_defines.h"
 #include "world/heightfield_terrain.h"
 #include "world/kscene.h"
@@ -65,16 +64,30 @@ typedef struct editor_gizmo_immediate_data {
 	mat4 model;
 } editor_gizmo_immediate_data;
 
+typedef struct hf_terrain_material_imagebox_context {
+	editor_state* editor;
+	u8 material_index;
+	hf_terrain_material_map map;
+} hf_terrain_material_imagebox_context;
+
+typedef struct hf_terrain_chunk_material_context {
+	editor_state* editor;
+	u8 material_slot;
+} hf_terrain_chunk_material_context;
+
 static f32 get_engine_delta_time(void);
 static f32 get_engine_total_time(void);
 
-static void editor_on_yaw(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
-static void editor_on_pitch(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+// Render modes
 static void editor_on_set_render_mode_default(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
 static void editor_on_set_render_mode_lighting(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
 static void editor_on_set_render_mode_normals(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
 static void editor_on_set_render_mode_cascades(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
 static void editor_on_set_render_mode_wireframe(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+
+// General editor movement/interaction
+static void editor_on_yaw(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
+static void editor_on_pitch(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
 static void editor_on_set_gizmo_mode(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
 static void editor_on_gizmo_orientation_set(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
 static void editor_on_move_forward(keys key, keymap_entry_bind_type type, keymap_modifier modifiers, void* user_data);
@@ -97,20 +110,25 @@ static void editor_unregister_events(struct editor_state* state);
 static void editor_register_commands(struct editor_state* state);
 static void editor_unregister_commands(struct editor_state* state);
 
+// "Main menu" and/or mode buttons.
 static b8 save_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 mode_scene_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 mode_entity_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 mode_tree_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 mode_hf_terrain_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
+static b8 texture_browser_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 
+// Editor options
 static void show_bvh_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static void show_grid_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static void show_debug_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static void scene_visibility_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 
+// Scene editor controls
 static void scene_name_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void scene_fog_colour_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 
+// Entity editor controls
 static void entity_name_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void entity_position_x_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void entity_position_y_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
@@ -123,12 +141,14 @@ static void entity_scale_x_textbox_on_key(kui_state* state, kui_control self, ku
 static void entity_scale_y_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void entity_scale_z_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 
+// Tree view controls
 static void tree_clear(editor_state* state);
 static void tree_refresh(editor_state* state);
 static b8 tree_item_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 tree_item_expanded(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 tree_item_collapsed(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 
+// HF Terrain editor controls
 static b8 hft_save_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 hft_material_imagebox_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static void hft_paint_brush_diameter_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
@@ -142,22 +162,7 @@ static void hf_terrain_checkbox_check_changed(struct kui_state* state, kui_contr
 static void hf_terrain_erase_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static void hf_terrain_set_height_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 
-static b8 texture_browser_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
-static b8 texture_browser_confirm_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
-static b8 texture_browser_cancel_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
-static void tex_browser_open_for_browsing(editor_state* state);
-static void tex_browser_open_for_selection(editor_state* state, void* context, PFN_tex_browser_selected_callback selected_callback, PFN_tex_browser_cancelled_callback cancelled_callback);
-static void tex_browser_close(editor_state* state);
-static void tex_browser_refresh(editor_state* state);
-static void tex_browser_search_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
-static void tex_browser_search_game_pak_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
-static b8 tex_browser_imagebox_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
-
-typedef struct hf_terrain_material_imagebox_context {
-	editor_state* editor;
-	u8 material_index;
-	hf_terrain_material_map map;
-} hf_terrain_material_imagebox_context;
+static void hft_chunk_material_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 
 b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname game_package_name) {
 	*memory_requirement = sizeof(editor_state);
@@ -166,7 +171,6 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname 
 	}
 
 	state->game_package_name = game_package_name;
-	state->tex_browser_search_package_name = game_package_name;
 
 	// Setup gizmo.
 	if (!editor_gizmo_create(&state->gizmo)) {
@@ -842,6 +846,34 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname 
 			kui_control_position_set(kui_state, state->hft_mode_chunk_content, (vec3){5, 90, 0});
 			kui_control_set_is_active(kui_state, state->hft_mode_chunk_content, false);
 			kui_control_set_is_visible(kui_state, state->hft_mode_chunk_content, false);
+
+			// TODO: Add controls for material mapping
+			for (u8 i = 0; i < 5; ++i) {
+				f32 ypos = i * 50.0f;
+
+				// Material label
+				char* name = string_format("hft_chunk_material_labels[%u]", i);
+				char* text = string_format("Slot %u", i);
+				state->hft_chunk_material_labels[i] = kui_label_control_create(kui_state, name, FONT_TYPE_SYSTEM, state->font_name, state->font_size, text);
+				string_free(name);
+				string_free(text);
+				KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_chunk_content, state->hft_chunk_material_labels[i]));
+				kui_control_position_set(kui_state, state->hft_chunk_material_labels[i], (vec3){5, ypos, 0});
+
+				// Material index
+				name = string_format("hft_chunk_material_textboxes[%u]", i);
+				state->hft_chunk_material_textboxes[i] = kui_textbox_control_create(kui_state, name, FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "", KUI_TEXTBOX_TYPE_INT);
+				string_free(name);
+				KASSERT(kui_system_control_add_child(kui_state, state->hft_mode_chunk_content, state->hft_chunk_material_textboxes[i]));
+				kui_control_position_set(kui_state, state->hft_chunk_material_textboxes[i], (vec3){state->hf_terrain_right_col_x, ypos, 0});
+				KASSERT(kui_textbox_control_width_set(kui_state, state->hft_chunk_material_textboxes[i], 40));
+
+				hf_terrain_chunk_material_context* ctrl_context = KALLOC_TYPE(hf_terrain_chunk_material_context, MEMORY_TAG_EDITOR);
+				ctrl_context->editor = state;
+				ctrl_context->material_slot = i;
+				kui_control_set_user_data(kui_state, state->hft_chunk_material_textboxes[i], sizeof(*ctrl_context), ctrl_context, true, MEMORY_TAG_EDITOR);
+				kui_control_set_on_key(kui_state, state->hft_chunk_material_textboxes[i], hft_chunk_material_textbox_on_key);
+			}
 		}
 
 		// Remove sub-mode
@@ -862,94 +894,15 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname 
 
 	// Texture browser
 	{
-		// Texture listing
-		state->imagebox_size = 128;
-		state->imagebox_padding = 5.0f;
-
-		// Texture browser background/window
-		state->tex_browser_window_size = vec2_create(1500, 900);
-		state->tex_browser_right_col_x = 1100.0f;
-		state->tex_browser_bg_panel = kui_panel_control_create(kui_state, "tex_browser_bg_panel", state->tex_browser_window_size, (vec4){0, 0, 0, 0.8f});
-		KASSERT(kui_system_control_add_child(kui_state, state->editor_root, state->tex_browser_bg_panel));
-		kui_control_position_set(kui_state, state->tex_browser_bg_panel, (vec3){300, 50, 0});
-		kui_control_set_is_active(kui_state, state->tex_browser_bg_panel, false);
-		kui_control_set_is_visible(kui_state, state->tex_browser_bg_panel, false);
-
-		// Window Label
-		state->tex_browser_title = kui_label_control_create(kui_state, "tex_browser_title", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Browse Textures");
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_title));
-		kui_control_position_set(kui_state, state->tex_browser_title, (vec3){10, -5.0f, 0});
-
-		// Search Label
-		state->tex_browser_search_label = kui_label_control_create(kui_state, "tex_browser_search_label", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Search");
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_search_label));
-		kui_control_position_set(kui_state, state->tex_browser_search_label, (vec3){10, 45.0f, 0});
-
-		// Search textbox.
-		state->tex_browser_search_textbox = kui_textbox_control_create(kui_state, "tex_browser_search_textbox", FONT_TYPE_SYSTEM, state->textbox_font_name, state->textbox_font_size, "", KUI_TEXTBOX_TYPE_STRING);
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_search_textbox));
-		kui_control_position_set(kui_state, state->tex_browser_search_textbox, (vec3){100, 50, 0});
-		KASSERT(kui_textbox_control_width_set(kui_state, state->tex_browser_search_textbox, 800.0f));
-		kui_control_set_user_data(kui_state, state->tex_browser_search_textbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
-		kui_control_set_on_key(kui_state, state->tex_browser_search_textbox, tex_browser_search_textbox_on_key);
-
-		state->tex_browser_search_game_pack_only_checkbox = kui_checkbox_control_create(kui_state, "tex_browser_search_game_pack_only_checkbox", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Game Pak. Only");
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_search_game_pack_only_checkbox));
-		kui_control_position_set(kui_state, state->tex_browser_search_game_pack_only_checkbox, (vec3){910, 50, 0});
-		kui_control_set_user_data(kui_state, state->tex_browser_search_game_pack_only_checkbox, sizeof(*state), state, false, MEMORY_TAG_EDITOR);
-		kui_checkbox_set_checked(kui_state, state->tex_browser_search_game_pack_only_checkbox, true);
-		kui_checkbox_set_on_checked(kui_state, state->tex_browser_search_game_pack_only_checkbox, tex_browser_search_game_pak_checkbox_check_changed);
-
-		// Scrollable content control
-		f32 inspector_width = state->tex_browser_window_size.x - state->tex_browser_right_col_x;
-		f32 scrollable_width = state->tex_browser_window_size.x - inspector_width;
-		state->tex_browser_scrollable_control = kui_scrollable_control_create(kui_state, "tex_browser_scrollable_control", (vec2){scrollable_width, 100}, false, true);
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_scrollable_control));
-		kui_control_position_set(kui_state, state->tex_browser_scrollable_control, (vec3){10, 100, 0});
-		kui_scrollable_control_resize(state->kui_state, state->tex_browser_scrollable_control, (vec2){scrollable_width, state->tex_browser_window_size.y - 150});
-
-		state->tex_browser_content_container = kui_scrollable_control_get_content_container(state->kui_state, state->tex_browser_scrollable_control);
-
-		state->tex_tile_size = vec2_create(
-			state->imagebox_size + state->imagebox_padding,
-			state->imagebox_size + state->imagebox_padding + state->font_size + state->imagebox_padding);
-
-		// Preview imagebox
-		state->tex_inspector_preview_imagebox = kui_image_box_control_create(state->kui_state, "tex_inspector_preview_imagebox", (vec2i){380, 380});
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_inspector_preview_imagebox));
-		kui_control_position_set(kui_state, state->tex_inspector_preview_imagebox, (vec3){state->tex_browser_right_col_x + 10, 100, 0});
-		kui_image_box_control_texture_set_by_name(kui_state, state->tex_inspector_preview_imagebox, kname_create(DEFAULT_TEXTURE_NAME), INVALID_KNAME);
-
-		const char* tex_data_str = string_format(
-			"%k\n%s\n%ux%u\n%s",
-			kname_create("No selection"),
-			"texture type", // TODO:
-			0,
-			0,
-			"format:");
-
-		// texture browser tex data
-		state->tex_inspector_label = kui_label_control_create(state->kui_state, "tex_inspector_label", FONT_TYPE_SYSTEM, state->font_name, state->font_size, tex_data_str);
-		string_free(tex_data_str);
-
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_inspector_label));
-		kui_control_position_set(kui_state, state->tex_inspector_label, (vec3){state->tex_browser_right_col_x + 10, 500, 0});
-
-		// Confirm button.
-		state->tex_browser_confirm_btn = kui_button_control_create_with_text(kui_state, "tex_browser_confirm_btn", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "OK");
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_confirm_btn));
-		kui_control_set_user_data(kui_state, state->tex_browser_confirm_btn, sizeof(editor_state), state, false, MEMORY_TAG_EDITOR);
-		kui_button_control_width_set(kui_state, state->tex_browser_confirm_btn, 190);
-		kui_control_position_set(kui_state, state->tex_browser_confirm_btn, (vec3){state->tex_browser_right_col_x + 5, state->tex_browser_window_size.y - 60, 0});
-		kui_control_set_on_click(kui_state, state->tex_browser_confirm_btn, texture_browser_confirm_button_clicked);
-
-		// Cancel button.
-		state->tex_browser_cancel_btn = kui_button_control_create_with_text(kui_state, "tex_browser_cancel_btn", FONT_TYPE_SYSTEM, state->font_name, state->font_size, "Cancel");
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_bg_panel, state->tex_browser_cancel_btn));
-		kui_control_set_user_data(kui_state, state->tex_browser_cancel_btn, sizeof(editor_state), state, false, MEMORY_TAG_EDITOR);
-		kui_button_control_width_set(kui_state, state->tex_browser_cancel_btn, 190);
-		kui_control_position_set(kui_state, state->tex_browser_cancel_btn, (vec3){state->tex_browser_right_col_x + 5 + 190 + 5, state->tex_browser_window_size.y - 60, 0});
-		kui_control_set_on_click(kui_state, state->tex_browser_cancel_btn, texture_browser_cancel_button_clicked);
+		texture_browser_create_info create_info = {
+			.ui = kui_state,
+			.editor_root = state->editor_root,
+			.game_package_name = game_package_name,
+			.font_size = state->font_size,
+			.font_name = state->font_name,
+			.textbox_font_size = state->textbox_font_size,
+			.textbox_font_name = state->textbox_font_name};
+		texture_browser_create(&state->tex_browser, create_info);
 	}
 	state->is_running = true;
 
@@ -971,12 +924,7 @@ void editor_shutdown(struct editor_state* state) {
 
 	tree_clear(state);
 
-	if (state->tex_browser_image_boxes) {
-		KFREE_TYPE_CARRAY(state->tex_browser_image_boxes, kui_control, state->tex_browser_tex_count);
-	}
-	if (state->tex_browser_labels) {
-		KFREE_TYPE_CARRAY(state->tex_browser_labels, kui_control, state->tex_browser_tex_count);
-	}
+	texture_browser_destroy(&state->tex_browser);
 
 	if (state->edit_scene) {
 		kscene_destroy(state->edit_scene);
@@ -1031,7 +979,10 @@ b8 editor_open(struct editor_state* state, kname scene_name, kname scene_package
 	u8 material_count = 0;
 	hf_terrain_material_data* materials = kscene_get_hf_terrain_materials(state->edit_scene, &material_count);
 	for (u8 i = 0; i < HF_TERRAIN_MAX_MATERIALS; ++i) {
-		// TODO: Load in material name once stored in the terrain format.
+		// Material name.
+		kstring_id name_strid = i < material_count ? materials[i].name : INVALID_KSTRING_ID;
+		kui_label_text_set(state->kui_state, state->hft_general_material_names[i], (name_strid == INVALID_KSTRING_ID) ? "<empty>" : kstring_id_string_get(name_strid));
+
 		{
 			kname asset_name = i < material_count ? materials[i].albedo_asset_name : kname_create(DEFAULT_TEXTURE_NAME);
 			kname package_name = i < material_count ? materials[i].albedo_asset_package_name : INVALID_KNAME;
@@ -1906,6 +1857,7 @@ static void editor_command_execute(console_command_context context) {
 }
 
 static void editor_register_events(struct editor_state* state) {
+	KASSERT(event_register(EVENT_CODE_BUTTON_PRESSED, state, editor_on_button));
 	KASSERT(event_register(EVENT_CODE_BUTTON_RELEASED, state, editor_on_button));
 	KASSERT(event_register(EVENT_CODE_MOUSE_MOVED, state, editor_on_mouse_move));
 	KASSERT(event_register(EVENT_CODE_MOUSE_DRAG_BEGIN, state, editor_on_drag));
@@ -1914,6 +1866,7 @@ static void editor_register_events(struct editor_state* state) {
 }
 
 static void editor_unregister_events(struct editor_state* state) {
+	event_unregister(EVENT_CODE_BUTTON_PRESSED, state, editor_on_button);
 	event_unregister(EVENT_CODE_BUTTON_RELEASED, state, editor_on_button);
 	event_unregister(EVENT_CODE_MOUSE_MOVED, state, editor_on_mouse_move);
 	event_unregister(EVENT_CODE_MOUSE_DRAG_BEGIN, state, editor_on_drag);
@@ -2005,48 +1958,14 @@ static b8 texture_browser_button_clicked(struct kui_state* state, kui_control se
 	kui_base_control* base = kui_system_get_base(state, self);
 	editor_state* edit_state = base->user_data;
 
-	b8 is_open = FLAG_GET(edit_state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT);
+	b8 is_open = texture_browser_is_open(&edit_state->tex_browser);
 	if (is_open) {
-		tex_browser_close(edit_state);
+		texture_browser_close(&edit_state->tex_browser);
 	} else {
-		tex_browser_open_for_browsing(edit_state);
+		texture_browser_open_for_browsing(&edit_state->tex_browser);
 	}
 
 	// Don't allow the event to popagate.
-	return false;
-}
-
-static b8 texture_browser_confirm_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
-	kui_base_control* base = kui_system_get_base(state, self);
-	editor_state* edit_state = base->user_data;
-
-	if (FLAG_GET(edit_state->tex_browser_flags, TEXTURE_BROWSER_FLAG_SELECTING_BIT)) {
-		if (edit_state->selected_texture == INVALID_KTEXTURE) {
-			// TODO: Either some sort of error dialog OR to disable the select button until a selection is made.
-			KERROR("No texture is selected, cannot proceed.");
-			return false;
-		}
-		// Issue the callback along with the selected texture.
-		if (edit_state->selected_callback) {
-			edit_state->selected_callback(edit_state->selected_texture, edit_state->tex_browser_context);
-		}
-	}
-
-	// Just close the window.
-	tex_browser_close(edit_state);
-	return false;
-}
-
-static b8 texture_browser_cancel_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
-	kui_base_control* base = kui_system_get_base(state, self);
-	editor_state* edit_state = base->user_data;
-
-	if (edit_state->cancelled_callback) {
-		edit_state->cancelled_callback(edit_state->tex_browser_context);
-	}
-
-	// Just close the window.
-	tex_browser_close(edit_state);
 	return false;
 }
 
@@ -2727,6 +2646,56 @@ i32 raycast_hit_kquicksort_compare_desc(void* a, void* b) {
 
 static b8 editor_on_button(u16 code, void* sender, void* listener_inst, event_context context) {
 	if (code == EVENT_CODE_BUTTON_PRESSED) {
+
+		u16 button = context.data.u16[4];
+		switch (button) {
+		case MOUSE_BUTTON_LEFT: {
+			i16 x = context.data.i16[0];
+			i16 y = context.data.i16[1];
+			editor_state* state = (editor_state*)listener_inst;
+
+			if (state->edit_scene) {
+				kscene_state scene_state = kscene_state_get(state->edit_scene);
+				if (scene_state == KSCENE_STATE_LOADED) {
+
+					if (state->mode == EDITOR_MODE_HF_TERRAIN) {
+						if (state->hft_edit_mode == HF_TERRAIN_EDIT_MODE_CHUNK) {
+
+							mat4 view = kcamera_get_view(state->editor_camera);
+							mat4 projection = kcamera_get_projection(state->editor_camera);
+							vec3 origin = kcamera_get_position(state->editor_camera);
+							rect_2di current_vp_rect = kcamera_get_vp_rect(state->editor_camera);
+
+							if (point_in_rect_2di((vec2i){x, y}, current_vp_rect)) {
+								ray r = ray_from_screen((vec2i){x, y}, current_vp_rect, origin, view, projection);
+								r.max_distance = 2000.0f;
+								// Ignore collisions occurring where the ray's origin is inside a BVH node.
+								FLAG_SET(r.flags, RAY_FLAG_IGNORE_IF_INSIDE_BIT, true);
+
+								hf_block block;
+								hf_chunk chunk;
+								vec3 pos;
+								vec3 normal;
+								if (kscene_hf_terrain_raycast(state->edit_scene, &r, true, &block, &chunk, &pos, &normal)) {
+
+									hf_terrain* t = kscene_hf_terrain_get(state->edit_scene);
+									hf_block* p_block = hf_terrain_get_block_at(t, block.x, block.z);
+									hf_chunk* p_chunk = hf_terrain_block_get_chunk_at(p_block, chunk.x, chunk.z);
+									state->selected_chunk = p_chunk;
+
+									// Set the selected chunk and update the UI controls.
+									for (u8 i = 0; i < 5; ++i) {
+										/* KTRACE("Chunk [%u, %u], Material slot %u is using index %u", chunk.x, chunk.z, i, chunk.material_indices[i]); */
+										kui_textbox_i64_set(state->kui_state, state->hft_chunk_material_textboxes[i], chunk.material_indices[i]);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		}
 		//
 	} else if (code == EVENT_CODE_BUTTON_RELEASED) {
 		u16 button = context.data.u16[4];
@@ -3458,6 +3427,34 @@ static void hf_terrain_set_height_checkbox_check_changed(struct kui_state* state
 	editor->hft_elevation_set_height = event.checked;
 }
 
+static void hft_chunk_material_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt) {
+	if (evt.type == KUI_KEYBOARD_EVENT_TYPE_PRESS) {
+		u16 key_code = evt.key;
+
+		hf_terrain_chunk_material_context* context = kui_control_get_user_data(state, self);
+
+		if (key_code == KEY_ENTER || key_code == KEY_TAB) {
+			const char* entry_control_text = kui_textbox_text_get(state, self);
+			u32 len = string_length(entry_control_text);
+			if (len > 0) {
+				const char* val = kui_textbox_text_get(state, self);
+				i64 x;
+				if (string_to_i64(val, &x)) {
+					// Set the material index for the given chunk.
+					// TODO: clamp/validate
+					if (context->editor->selected_chunk) {
+						context->editor->selected_chunk->material_indices[context->material_slot] = x;
+					}
+				}
+			}
+		}
+		if (key_code == KEY_TAB) {
+			// TODO: focus next control
+			/* kui_system_focus_control(state, editor->hft_elevation_diameter_textbox); */
+		}
+	}
+}
+
 static b8 hft_save_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
 	editor_state* editor = kui_control_get_user_data(state, self);
 
@@ -3502,7 +3499,8 @@ static b8 hft_material_imagebox_clicked(struct kui_state* state, kui_control sel
 	context->image_box = self;
 	context->material_index = ctrl_context->material_index;
 	context->map = ctrl_context->map;
-	tex_browser_open_for_selection(editor, context, hft_tex_browser_selected_callback, hft_tex_browser_cancelled_callback);
+	// TODO: pass stuct with "selection_criteria_info"
+	texture_browser_open_for_selection(&editor->tex_browser, context, hft_tex_browser_selected_callback, hft_tex_browser_cancelled_callback);
 	//
 	// Note that a texture size matching the other terrain materials texture sizes is required.
 	//
@@ -3579,278 +3577,4 @@ static void hft_paint_material_index_textbox_on_key(kui_state* state, kui_contro
 			}
 		}
 	}
-}
-
-static void tex_browser_open_internal(editor_state* state) {
-	// Activate/set visible the tex browser bg panel
-	kui_control_set_is_active(state->kui_state, state->tex_browser_bg_panel, true);
-	kui_control_set_is_visible(state->kui_state, state->tex_browser_bg_panel, true);
-
-	tex_browser_refresh(state);
-
-	if (FLAG_GET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_SELECTING_BIT)) {
-		kui_label_text_set(state->kui_state, state->tex_browser_title, "Select a Texture");
-		// TODO: show additional selection controls (i.e. ok/cancel buttons, maybe a label at the top of the window?)
-
-	} else {
-		kui_label_text_set(state->kui_state, state->tex_browser_title, "Browse Textures");
-		// TODO: ensure selection-only controls are not shown.
-	}
-}
-
-static void tex_browser_open_for_browsing(editor_state* state) {
-	if (FLAG_GET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT)) {
-		KWARN("The texture browser is already open");
-		return;
-	}
-
-	state->tex_browser_flags = TEXTURE_BROWSER_FLAG_NONE;
-	FLAG_SET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT, true);
-
-	tex_browser_open_internal(state);
-}
-static void tex_browser_open_for_selection(editor_state* state, void* context, PFN_tex_browser_selected_callback selected_callback, PFN_tex_browser_cancelled_callback cancelled_callback) {
-	if (FLAG_GET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT)) {
-		KWARN("The texture browser is already open");
-		return;
-	}
-
-	state->tex_browser_flags = TEXTURE_BROWSER_FLAG_NONE;
-	FLAG_SET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT, true);
-	FLAG_SET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_SELECTING_BIT, true);
-
-	state->tex_browser_context = context;
-	state->selected_callback = selected_callback;
-	state->cancelled_callback = cancelled_callback;
-
-	tex_browser_open_internal(state);
-}
-static void tex_browser_close(editor_state* state) {
-	// Activate/set visible the tex browser bg panel
-	kui_control_set_is_active(state->kui_state, state->tex_browser_bg_panel, false);
-	kui_control_set_is_visible(state->kui_state, state->tex_browser_bg_panel, false);
-	FLAG_SET(state->tex_browser_flags, TEXTURE_BROWSER_FLAG_OPEN_BIT, false);
-
-	state->tex_browser_context = KNULL;
-	state->selected_callback = KNULL;
-	state->cancelled_callback = KNULL;
-}
-
-static void tex_browser_refresh(editor_state* state) {
-	kui_state* kui_state = state->kui_state;
-
-	f32 inspector_width = state->tex_browser_window_size.x - state->tex_browser_right_col_x;
-	f32 scrollable_width = state->tex_browser_window_size.x - inspector_width - 5.0f;
-
-	// Clear the old controls first.
-	if (state->tex_browser_tex_count) {
-		kui_control_destroy_all_children(state->kui_state, state->tex_browser_content_container);
-		/* for (u32 i = 0; i < state->tex_browser_tex_count; ++i) {
-			kui_image_box_control_destroy(kui_state, &state->tex_browser_image_boxes[i]);
-			kui_label_control_destroy(kui_state, &state->tex_browser_labels[i]);
-		} */
-		KFREE_TYPE_CARRAY(state->tex_browser_image_boxes, kui_control, state->tex_browser_tex_count);
-		state->tex_browser_image_boxes = KNULL;
-		KFREE_TYPE_CARRAY(state->tex_browser_labels, kui_control, state->tex_browser_tex_count);
-		state->tex_browser_labels = KNULL;
-	}
-
-	// Query for a list of textures.
-	kname* texture_names = asset_system_names_by_type(engine_systems_get()->asset_state, KASSET_TYPE_IMAGE, state->tex_browser_search_package_name, &state->tex_browser_tex_count);
-
-	if (texture_names && state->tex_browser_search_text && string_length(state->tex_browser_search_text)) {
-		kname* search_names = darray_create(kname);
-		for (u32 i = 0; i < state->tex_browser_tex_count; ++i) {
-			if (string_index_of_stri(kname_string_get(texture_names[i]), state->tex_browser_search_text) != -1) {
-				darray_push(search_names, texture_names[i]);
-			}
-		}
-		KFREE_TYPE_CARRAY(texture_names, kname, state->tex_browser_tex_count);
-		texture_names = KNULL;
-		state->tex_browser_tex_count = darray_length(search_names);
-		if (state->tex_browser_tex_count) {
-			KDUPLICATE_TYPE_CARRAY(texture_names, search_names, kname, state->tex_browser_tex_count);
-			darray_destroy(search_names);
-		}
-	}
-
-	u32 x = 0;
-	u32 y = 0;
-
-	if (state->tex_browser_tex_count) {
-		state->tex_browser_image_boxes = KALLOC_TYPE_CARRAY(kui_control, state->tex_browser_tex_count);
-		state->tex_browser_labels = KALLOC_TYPE_CARRAY(kui_control, state->tex_browser_tex_count);
-
-		tex_browser_element_data* first_element_data = KNULL;
-		for (u32 i = 0; i < state->tex_browser_tex_count; ++i) {
-
-			tex_browser_element_data* element_data = KALLOC_TYPE(tex_browser_element_data, MEMORY_TAG_EDITOR);
-			element_data->editor = state;
-			element_data->texture_name = texture_names[i];
-			if (i == 0) {
-				first_element_data = element_data;
-			}
-
-			// Image box
-			{
-				char* name = string_format("__texture_browser_image_box_%u__", i);
-				state->tex_browser_image_boxes[i] = kui_image_box_control_create(state->kui_state, name, (vec2i){state->imagebox_size, state->imagebox_size});
-				string_free(name);
-				KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_content_container, state->tex_browser_image_boxes[i]));
-				if (!kui_image_box_control_texture_set_by_name(kui_state, state->tex_browser_image_boxes[i], texture_names[i], INVALID_KNAME)) {
-					KERROR("Image not loaded, ya dingus!");
-				}
-
-				element_data->texture = texture_get_by_name(texture_names[i]);
-				if (!texture_properties_get(element_data->texture, &element_data->properties)) {
-					KERROR("Unable to get properties for texture '%k'", texture_names[i]);
-					KFREE_TYPE(element_data, tex_browser_element_data, MEMORY_TAG_EDITOR);
-					continue;
-				}
-				kui_control_set_user_data(kui_state, state->tex_browser_image_boxes[i], sizeof(tex_browser_element_data), element_data, true, MEMORY_TAG_EDITOR);
-				// onclick select and show metadata
-				kui_control_set_on_click(kui_state, state->tex_browser_image_boxes[i], tex_browser_imagebox_clicked);
-
-				// TODO: doubleclick selects and returns if in "selection mode"
-			}
-			// Label
-			{
-				char* name = string_format("__texture_browser_image_label_%u__", i);
-				state->tex_browser_labels[i] = kui_label_control_create_ex(
-					state->kui_state,
-					name,
-					FONT_TYPE_SYSTEM,
-					state->font_name,
-					state->font_size,
-					kname_string_get(texture_names[i]),
-					state->imagebox_size,
-					KUI_LABEL_FLAG_TRUNCATE_ELLIPSIS_BIT);
-				string_free(name);
-				KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_content_container, state->tex_browser_labels[i]));
-				kui_control_set_user_data(kui_state, state->tex_browser_labels[i], sizeof(tex_browser_element_data), element_data, false, MEMORY_TAG_EDITOR);
-			}
-
-			// positioning
-			b8 has_space = (state->tex_tile_size.x * (x + 1)) <= scrollable_width;
-			if (!has_space) {
-				x = 0;
-				y++;
-			}
-
-			vec3 image_pos = (vec3){state->tex_tile_size.x * x, state->tex_tile_size.y * y, 0};
-			vec3 label_pos = vec3_add(image_pos, vec3_create(0, state->imagebox_size, 0));
-			kui_control_position_set(kui_state, state->tex_browser_image_boxes[i], image_pos);
-			kui_control_position_set(kui_state, state->tex_browser_labels[i], label_pos);
-
-			++x;
-		}
-
-		// Selection frame.
-		state->tex_browser_selected_frame = kui_frame_control_create(state->kui_state, "tex_browser_selected_frame");
-		KASSERT(kui_system_control_add_child(kui_state, state->tex_browser_content_container, state->tex_browser_selected_frame));
-		kui_frame_control_size_set(state->kui_state, state->tex_browser_selected_frame, state->imagebox_size, state->imagebox_size);
-		// HACK: hardcoded pos to first selection - need to calculate based on selected index.
-		kui_control_position_set(kui_state, state->tex_browser_selected_frame, (vec3){0, 0, 0});
-
-		state->selected_texture = first_element_data->texture;
-		kui_image_box_control_texture_set_by_name(kui_state, state->tex_inspector_preview_imagebox, first_element_data->texture_name, INVALID_KNAME);
-
-		const char* tex_data_str = string_format(
-			"%k\n%s\n%ux%u\nformat:%s",
-			first_element_data->texture_name,
-			"texture type", // TODO:
-			first_element_data->properties.width,
-			first_element_data->properties.height,
-			string_from_kpixel_format(first_element_data->properties.format));
-
-		// texture browser tex data
-		kui_label_text_set(state->kui_state, state->tex_inspector_label, tex_data_str);
-		string_free(tex_data_str);
-	} else {
-
-		// No textures available, thus no selection can be made.
-		state->selected_texture = INVALID_KTEXTURE;
-		kui_image_box_control_texture_set_by_name(kui_state, state->tex_inspector_preview_imagebox, kname_create(DEFAULT_TEXTURE_NAME), INVALID_KNAME);
-
-		const char* tex_data_str = string_format(
-			"%k\n%s\n%ux%u\n%s",
-			kname_create("No selection"),
-			"texture type", // TODO:
-			0,
-			0,
-			"format:");
-
-		// texture browser tex data
-		kui_label_text_set(state->kui_state, state->tex_inspector_label, tex_data_str);
-		string_free(tex_data_str);
-	}
-
-	f32 scrollable_height = state->tex_tile_size.y * (y + 1);
-
-	kui_scrollable_set_content_size(state->kui_state, state->tex_browser_scrollable_control, scrollable_width, scrollable_height);
-	// Scroll to the top left
-	/* kui_scrollable_control_scroll_y_set(state->kui_state, state->tex_browser_scrollable_control, 0); */
-	/* kui_scrollable_control_scroll_x_set(state->kui_state, state->tex_browser_scrollable_control, 0); */
-
-	if (texture_names) {
-		KFREE_TYPE_CARRAY(texture_names, kname, state->tex_browser_tex_count);
-	}
-}
-
-static void tex_browser_search_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt) {
-	if (evt.type == KUI_KEYBOARD_EVENT_TYPE_PRESS) {
-		u16 key_code = evt.key;
-
-		editor_state* editor = kui_control_get_user_data(state, self);
-
-		if (key_code == KEY_ENTER) {
-			// Clear current search text.
-			string_free(editor->tex_browser_search_text);
-			editor->tex_browser_search_text = KNULL;
-
-			// Only search on enter press.
-			const char* entry_control_text = kui_textbox_text_get(state, self);
-			u32 len = string_length(entry_control_text);
-			if (len > 0) {
-				KTRACE("Searching for textures based on '%s'...", entry_control_text);
-				editor->tex_browser_search_text = string_duplicate(entry_control_text);
-			}
-			tex_browser_refresh(editor);
-		}
-	}
-}
-
-static void tex_browser_search_game_pak_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event) {
-	editor_state* editor = kui_control_get_user_data(state, self);
-
-	editor->tex_browser_search_package_name = event.checked ? editor->game_package_name : INVALID_KNAME;
-	tex_browser_refresh(editor);
-}
-
-static b8 tex_browser_imagebox_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
-	tex_browser_element_data* element_data = kui_control_get_user_data(state, self);
-
-	kui_base_control* base = kui_system_get_base(state, self);
-	vec3 pos = ktransform_position_get(base->ktransform);
-
-	kui_base_control* selection_frame = kui_system_get_base(state, element_data->editor->tex_browser_selected_frame);
-	ktransform_position_set(selection_frame->ktransform, pos);
-
-	element_data->editor->selected_texture = element_data->texture;
-
-	KTRACE("Texture selected '%k' (width=%u, height=%u).", element_data->texture_name, element_data->properties.width, element_data->properties.height);
-
-	kui_image_box_control_texture_set_by_name(state, element_data->editor->tex_inspector_preview_imagebox, element_data->texture_name, INVALID_KNAME);
-
-	const char* tex_data_str = string_format(
-		"%k\n%s\n%ux%u\nformat:%s",
-		element_data->texture_name,
-		"texture type", // TODO:
-		element_data->properties.width,
-		element_data->properties.height,
-		string_from_kpixel_format(element_data->properties.format));
-	kui_label_text_set(state, element_data->editor->tex_inspector_label, tex_data_str);
-	string_free(tex_data_str);
-
-	return false;
 }

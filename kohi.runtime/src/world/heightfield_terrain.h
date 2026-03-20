@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core_render_types.h"
+#include "strings/kstring_id.h"
 #include <math/math_types.h>
 
 /**
@@ -160,6 +161,9 @@ typedef struct hf_terrain {
 	ktexture albedo_texture_array;
 	ktexture normal_texture_array;
 	ktexture mra_texture_array;
+
+	// Case-sensitive material name
+	kstring_id material_names[HF_TERRAIN_MAX_MATERIALS];
 
 	kname albedo_asset_names[HF_TERRAIN_MAX_MATERIALS];
 	kname albedo_package_names[HF_TERRAIN_MAX_MATERIALS];

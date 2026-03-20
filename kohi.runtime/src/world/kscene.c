@@ -2869,6 +2869,8 @@ hf_terrain_material_data* kscene_get_hf_terrain_materials(struct kscene* scene, 
 	*out_count = scene->hf.material_count;
 
 	for (u8 i = 0; i < (*out_count); ++i) {
+		materials[i].name = scene->hf.material_names[i];
+
 		materials[i].albedo_asset_name = scene->hf.albedo_asset_names[i];
 		materials[i].albedo_asset_package_name = scene->hf.albedo_package_names[i];
 
@@ -3938,12 +3940,14 @@ b8 kscene_hf_terrain_save(const struct kscene* scene) {
 		}
 	}
 
-	asset.material_names = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material_names, asset.material_count);
+	asset.material_names = KALLOC_TYPE_CARRAY(const char*, asset.material_count);
+	asset.material_map_names = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material_map_names, asset.material_count);
 	asset.materials = KALLOC_TYPE_CARRAY(kasset_hf_terrain_material, asset.material_count);
 	for (u32 i = 0; i < scene->hf.material_count; ++i) {
-		asset.material_names[i].albedo_str = kname_string_get(scene->hf.albedo_asset_names[i]);
-		asset.material_names[i].normal_str = kname_string_get(scene->hf.normal_asset_names[i]);
-		asset.material_names[i].mra_str = kname_string_get(scene->hf.mra_asset_names[i]);
+		asset.material_map_names[i].albedo_str = kname_string_get(scene->hf.albedo_asset_names[i]);
+		asset.material_map_names[i].normal_str = kname_string_get(scene->hf.normal_asset_names[i]);
+		asset.material_map_names[i].mra_str = kname_string_get(scene->hf.mra_asset_names[i]);
+		asset.material_names[i] = kstring_id_string_get(scene->hf.material_names[i]);
 	}
 
 	u64 asset_size = 0;

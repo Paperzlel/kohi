@@ -8,6 +8,10 @@ Changelog
   - Fixed a UI issue where parents that clip controls weren't doing so for mouse events as well (i.e. scrollable containers).
   - Added truncation, truncation with ellipsis, and wrapping to KUI label controls.
   - Fixed an issue with writing layered textures.
+  - Added clipping area types:
+    - Stencil - Pre-existing, but uses geometry and the stencil buffer to clip. More flexible, but more expensive.
+    - Scissor - uses the renderer's scissor setting to clip. Bound to axis-aligned rectangle, but is far more efficient than stencil.
+  - Updated UI system to use scissor clipping areas by default.
 
 - 0.11.0
   - Due to changes in the Vulkan layer, the newest SDK must be installed on macOS.

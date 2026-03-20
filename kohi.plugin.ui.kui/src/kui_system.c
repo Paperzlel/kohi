@@ -315,16 +315,18 @@ b8 kui_system_render(kui_state* state, kui_control root, struct frame_data* p_fr
 		return false;
 	}
 
-	// TODO: If there is a clipping mask, insert the begin renderable here.
-	b8 use_clip_mask = false;
-	if (base->clip_mask.render_data.vertex_count) {
-		use_clip_mask = true;
-	}
-
-	if (use_clip_mask) {
-		kui_renderable clip_begin_renderable = {
-			.type = KUI_RENDERABLE_TYPE_CLIP_BEGIN,
-			.render_data = base->clip_mask.render_data};
+	// If there is a clipping mask, insert the begin renderable here.
+	if (base->clipping_area.type != KUI_CLIP_TYPE_NONE) {
+		kui_renderable clip_begin_renderable;
+		if (base->clipping_area.type == KUI_CLIP_TYPE_STENCIL) {
+			clip_begin_renderable = (kui_renderable){
+				.type = KUI_RENDERABLE_TYPE_STENCIL_CLIP_BEGIN,
+				.render_data = base->clipping_area.stencil_data.render_data};
+		} else {
+			clip_begin_renderable = (kui_renderable){
+				.type = KUI_RENDERABLE_TYPE_SCISSOR_CLIP_BEGIN,
+				.clipping_area = base->clipping_area.scissor_data.clipping_area};
+		}
 		darray_push(render_data->renderables, clip_begin_renderable);
 	}
 
@@ -350,9 +352,10 @@ b8 kui_system_render(kui_state* state, kui_control root, struct frame_data* p_fr
 		}
 	}
 
-	// TODO: If there is a clipping mask, insert the end renderable here.
-	if (use_clip_mask) {
-		kui_renderable clip_end_renderable = {.type = KUI_RENDERABLE_TYPE_CLIP_END};
+	// If there is a clipping mask, insert the end renderable here.
+	if (base->clipping_area.type != KUI_CLIP_TYPE_NONE) {
+		kui_renderable clip_end_renderable = {
+			.type = (base->clipping_area.type == KUI_CLIP_TYPE_STENCIL) ? KUI_RENDERABLE_TYPE_STENCIL_CLIP_END : KUI_RENDERABLE_TYPE_SCISSOR_CLIP_END};
 		darray_push(render_data->renderables, clip_end_renderable);
 	}
 

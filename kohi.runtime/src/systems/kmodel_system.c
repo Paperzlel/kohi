@@ -637,6 +637,7 @@ b8 kmodel_ray_intersects(struct kmodel_system_state* state, kmodel_instance inst
 		if (ray_pick_triangle(&rt, false, mesh->geo.vertex_count, mesh->geo.vertex_element_size, mesh->geo.vertices, mesh->geo.index_count, mesh->geo.indices, &picked, &pos, &normal)) {
 			if (out_hit) {
 				out_hit->type = RAYCAST_HIT_TYPE_SURFACE;
+				// FIXME: Should this be the inverse world? To get the world position?
 				// Transform position.
 				pos = vec3_transform(pos, 1.0f, world);
 				// Transform normal too.

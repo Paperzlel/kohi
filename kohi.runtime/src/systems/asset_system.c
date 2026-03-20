@@ -880,11 +880,12 @@ void asset_system_release_hf_terrain(struct asset_system_state* state, kasset_hf
 		KFREE_TYPE_CARRAY(asset->vertices, kasset_hf_terrain_vertex, asset->vertex_count);
 		KFREE_TYPE_CARRAY(asset->materials, kasset_hf_terrain_material, asset->material_count);
 		for (u32 i = 0; i < asset->material_count; ++i) {
-			string_free(asset->material_names[i].albedo_str);
-			string_free(asset->material_names[i].normal_str);
-			string_free(asset->material_names[i].mra_str);
+			string_free(asset->material_map_names[i].albedo_str);
+			string_free(asset->material_map_names[i].normal_str);
+			string_free(asset->material_map_names[i].mra_str);
 		}
-		KFREE_TYPE_CARRAY(asset->material_names, kasset_hf_terrain_material_names, asset->material_count);
+		KFREE_TYPE_CARRAY(asset->material_map_names, kasset_hf_terrain_material_map_names, asset->material_count);
+		KFREE_TYPE_CARRAY(asset->material_names, const char*, asset->material_count);
 
 		KFREE_TYPE(asset, kasset_hf_terrain, MEMORY_TAG_ASSET);
 	}

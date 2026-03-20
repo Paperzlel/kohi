@@ -14,12 +14,12 @@ The items in this list are not in any particular order. This list will be update
   - [ ] General properites editor (select global materials for terrain, etc.)
   - [x] Material painting
   - [ ] Colour painting (second map akin to splatmap to integrate extra bit of colour)
-  - [ ] Elevation changes
+  - [x] Elevation changes
   - [ ] Deletion of quads
   - [ ] Chunk editor, allows to assign 5 terrain materials unique per chunk.
 - [ ] Asset manifest
   - [ ] Add asset type per entry, plus property bag "metadata".
-  - [ ] Query asset system by type, name, package, etc. or some combination of that.
+  - [x] Query asset system by type, name, package, etc. or some combination of that.
   - [ ] Update the manifest by importing assets via an "Assets" editor.
 
 - [ ] Heightfield water and materials

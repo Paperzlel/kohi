@@ -14,6 +14,7 @@
 #include "kui_defines.h"
 #include "kui_system.h"
 #include "kui_types.h"
+#include "math/math_types.h"
 #include "renderer/kui_renderer.h"
 #include "systems/ktransform_system.h"
 
@@ -48,31 +49,31 @@ kui_control kui_scrollable_control_create(kui_state* state, const char* name, ve
 	// Clips child controls.
 	FLAG_SET(base->flags, KUI_CONTROL_FLAG_CLIPS_CHILDREN_BIT, true);
 
-	// Setup clipping mask geometry.
-	base->clip_mask.reference_id = 1; // TODO: move creation/reference_id assignment.
+	// Setup clipping area.
+	base->clipping_area.type = KUI_CLIP_TYPE_SCISSOR;
+	vec3 pos = ktransform_world_position_get(base->ktransform);
+	// FIXME: This will break when scaled.
+	base->clipping_area.scissor_data.clipping_area = (rect_2di){
+		.x = pos.x,
+		.y = pos.y,
+		.width = base->bounds.width,
+		.height = base->bounds.height};
 
-	// FIXME: Use unit position and scale instead?
-	base->clip_mask.clip_geometry = geometry_generate_quad(size.x, size.y, 0, 0, 0, 0, kname_create("scrollable_clipping_box"));
-	KASSERT(renderer_geometry_upload(&base->clip_mask.clip_geometry));
-
-	base->clip_mask.render_data.model = mat4_identity();
-	// FIXME: Convert this to generate just verts/indices, and upload via the new
-	// renderer api functions instead of deprecated geometry functions.
-	base->clip_mask.render_data.unique_id = base->clip_mask.reference_id;
-
-	base->clip_mask.render_data.vertex_count = base->clip_mask.clip_geometry.vertex_count;
-	base->clip_mask.render_data.vertex_element_size = base->clip_mask.clip_geometry.vertex_element_size;
-	base->clip_mask.render_data.vertex_buffer_offset = base->clip_mask.clip_geometry.vertex_buffer_offset;
-
-	base->clip_mask.render_data.index_count = base->clip_mask.clip_geometry.index_count;
-	base->clip_mask.render_data.index_element_size = base->clip_mask.clip_geometry.index_element_size;
-	base->clip_mask.render_data.index_buffer_offset = base->clip_mask.clip_geometry.index_buffer_offset;
-
-	base->clip_mask.render_data.diffuse_colour = vec4_zero(); // transparent;
-
-	base->clip_mask.clip_ktransform = ktransform_create(0);
-
-	ktransform_parent_set(base->clip_mask.clip_ktransform, base->ktransform);
+	// NOTE: To use stencil buffer, do the below instead.
+	/* base->clip_mask.stencil_data.reference_id = 1;
+	base->clip_mask.stencil_data.clip_geometry = geometry_generate_quad(size.x, size.y, 0, 0, 0, 0, kname_create("scrollable_clipping_box"));
+	KASSERT(renderer_geometry_upload(&base->clip_mask.stencil_data.clip_geometry));
+	base->clip_mask.stencil_data.render_data.model = mat4_identity();
+	base->clip_mask.stencil_data.render_data.unique_id = base->clip_mask.stencil_data.reference_id;
+	base->clip_mask.stencil_data.render_data.vertex_count = base->clip_mask.stencil_data.clip_geometry.vertex_count;
+	base->clip_mask.stencil_data.render_data.vertex_element_size = base->clip_mask.stencil_data.clip_geometry.vertex_element_size;
+	base->clip_mask.stencil_data.render_data.vertex_buffer_offset = base->clip_mask.stencil_data.clip_geometry.vertex_buffer_offset;
+	base->clip_mask.stencil_data.render_data.index_count = base->clip_mask.stencil_data.clip_geometry.index_count;
+	base->clip_mask.stencil_data.render_data.index_element_size = base->clip_mask.stencil_data.clip_geometry.index_element_size;
+	base->clip_mask.stencil_data.render_data.index_buffer_offset = base->clip_mask.stencil_data.clip_geometry.index_buffer_offset;
+	base->clip_mask.stencil_data.render_data.diffuse_colour = vec4_zero(); // transparent;
+	base->clip_mask.stencil_data.clip_ktransform = ktransform_create(0);
+	ktransform_parent_set(base->clip_mask.stencil_data.clip_ktransform, base->ktransform); */
 
 	const char* content_name = string_format("%s_content", name);
 	typed_control->content_wrapper = kui_base_control_create(state, content_name, KUI_CONTROL_TYPE_BASE);
@@ -160,8 +161,10 @@ void kui_scrollable_control_destroy(kui_state* state, kui_control* self) {
 	kui_scrollable_control* typed_control = (kui_scrollable_control*)base;
 
 	// destroy clipping mask
-	renderer_geometry_destroy(&base->clip_mask.clip_geometry);
-	geometry_destroy(&base->clip_mask.clip_geometry);
+	if (base->clipping_area.type == KUI_CLIP_TYPE_STENCIL) {
+		renderer_geometry_destroy(&base->clipping_area.stencil_data.geometry);
+		geometry_destroy(&base->clipping_area.stencil_data.geometry);
+	}
 
 	nine_slice_destroy(&typed_control->scrollbar_y.bg);
 	ktransform_destroy(&typed_control->scrollbar_y.bg_transform);
@@ -222,7 +225,17 @@ b8 kui_scrollable_control_render(kui_state* state, kui_control self, struct fram
 		}
 	}
 
-	base->clip_mask.render_data.model = ktransform_world_get(base->clip_mask.clip_ktransform);
+	if (base->clipping_area.type == KUI_CLIP_TYPE_STENCIL) {
+		base->clipping_area.stencil_data.render_data.model = ktransform_world_get(base->clipping_area.stencil_data.transform);
+	} else if (base->clipping_area.type == KUI_CLIP_TYPE_SCISSOR) {
+		vec3 pos = ktransform_world_position_get(base->ktransform);
+		// FIXME: This will break when scaled.
+		base->clipping_area.scissor_data.clipping_area = (rect_2di){
+			.x = pos.x,
+			.y = pos.y,
+			.width = base->bounds.width,
+			.height = base->bounds.height};
+	}
 
 	return true;
 }
@@ -277,12 +290,14 @@ b8 kui_scrollable_control_resize(kui_state* state, kui_control self, vec2 new_si
 
 	base->bounds.width = new_size.x;
 	base->bounds.height = new_size.y;
-	vertex_2d* vertices = base->clip_mask.clip_geometry.vertices;
-	vertices[1].position.y = new_size.y;
-	vertices[1].position.x = new_size.x;
-	vertices[2].position.y = new_size.y;
-	vertices[3].position.x = new_size.x;
-	renderer_geometry_vertex_update(&base->clip_mask.clip_geometry, 0, 4, vertices, false);
+	if (base->clipping_area.type == KUI_CLIP_TYPE_STENCIL) {
+		vertex_2d* vertices = base->clipping_area.stencil_data.geometry.vertices;
+		vertices[1].position.y = new_size.y;
+		vertices[1].position.x = new_size.x;
+		vertices[2].position.y = new_size.y;
+		vertices[3].position.x = new_size.x;
+		renderer_geometry_vertex_update(&base->clipping_area.stencil_data.geometry, 0, 4, vertices, false);
+	}
 
 	/* typed_control->scrollbar_y.bg.size.x = new_size.x; */
 	typed_control->scrollbar_y.bg.size.y = new_size.y;

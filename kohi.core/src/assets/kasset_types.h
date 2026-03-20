@@ -543,16 +543,23 @@ typedef struct kasset_hf_terrain_block {
 } kasset_hf_terrain_block;
 
 typedef struct kasset_hf_terrain_material {
+	u32 name_str_index;
 	u32 albedo_str_index;
 	u32 normal_str_index;
 	u32 mra_str_index;
 } kasset_hf_terrain_material;
 
-typedef struct kasset_hf_terrain_material_names {
+typedef struct kasset_hf_terrain_material_OLD {
+	u32 albedo_str_index;
+	u32 normal_str_index;
+	u32 mra_str_index;
+} kasset_hf_terrain_material_OLD;
+
+typedef struct kasset_hf_terrain_material_map_names {
 	const char* albedo_str;
 	const char* normal_str;
 	const char* mra_str;
-} kasset_hf_terrain_material_names;
+} kasset_hf_terrain_material_map_names;
 
 typedef struct kasset_hf_terrain {
 	u16 version;
@@ -568,6 +575,9 @@ typedef struct kasset_hf_terrain {
 
 	u8 material_count;
 	kasset_hf_terrain_material* materials;
-	kasset_hf_terrain_material_names* material_names;
+	// Collection of map names per material
+	kasset_hf_terrain_material_map_names* material_map_names;
+	// Names of each material.
+	const char** material_names;
 
 } kasset_hf_terrain;
