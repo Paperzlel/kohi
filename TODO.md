@@ -9,21 +9,44 @@ The items in this list are not in any particular order. This list will be update
   - [x] Albedo maps
   - [x] Normal maps
   - [x] MRA maps
-  - [ ] Emissive?
 - [ ] Terrain editor
   - [ ] General properites editor (select global materials for terrain, etc.)
   - [x] Material painting
-  - [ ] Colour painting (second map akin to splatmap to integrate extra bit of colour)
   - [x] Elevation changes
-  - [ ] Deletion of quads
-  - [ ] Chunk editor, allows to assign 5 terrain materials unique per chunk.
+  - [x] Chunk editor, allows to assign 5 terrain materials unique per chunk.
+- [ ] Platform layer
+  - [ ] x-platform open/save file dialog
+    - [x] Linux (systemd for now)
+    - [ ] Windows
+    - [ ] macOS
 - [ ] Asset manifest
-  - [ ] Add asset type per entry, plus property bag "metadata".
   - [x] Query asset system by type, name, package, etc. or some combination of that.
   - [ ] Update the manifest by importing assets via an "Assets" editor.
-
-- [ ] Heightfield water and materials
 - [ ] Bugfix: #264 Address window closing issue on i3wm.
+
+## 0.13.0 Release
+
+- [ ] UI Controls:
+  - [ ] Dropdown with variable content (text, text/image, image)
+  - [ ] Windows with standard min/max/close controls, titlebar, resizing
+- [ ] Editor enhancements
+  - [ ] HFTerrain->Chunk editor: Material selector dropdown
+  - [ ] Generic scene - edit other global scene properties (shadow/directional light, fog dist/falloff, etc.)
+- [ ] Material editor
+  - [ ] Standard materials (both base material and instance, if object is currently selected)
+  - [ ] Terrain materials
+  - [ ] Water materials
+- [ ] Texture Browser
+  - [ ] Additional params to selection mode (i.e. texture dimension requirement for terrains, etc.)
+  - [ ] Import button
+- [ ] Terrain editor
+  - [ ] Deletion of quads
+  - [ ] Colour painting (second map akin to splatmap to integrate extra bit of colour)
+- [x] Terrain materials (Special blended, simplified PBR)
+  - [ ] Emissive
+- [ ] Asset manifest
+  - [ ] Add property bag for "metadata". Property bag should have a few basic types like KSON has, but be accessible by kstring_ids.
+- [ ] HF Terrain water and materials
 
 ## Future Releases
 

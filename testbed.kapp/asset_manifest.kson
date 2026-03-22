@@ -15,6 +15,154 @@ references = [
 ]
 assets = [
 	{
+		name = "dirtRocks_grass_mix"
+		type = "image"
+		metadata = {
+			comment = "Extra data"
+		}
+		description = "A terrain texture containing a mix of dirt, rocks and grass"
+		path = "./assets/images/dirtRocks_grass_mix.kbi"
+		source_path = "./assets/images/source/dirtRocks_grass_mix.jpg"
+	}
+	{
+		name = "dirtRocks_grass_mix_NORM"
+		type = "image"
+		path = "./assets/images/dirtRocks_grass_mix_NORM.kbi"
+		source_path = "./assets/images/source/dirtRocks_grass_mix_NORM.png"
+	}
+	{
+		name = "dirtRocks_grass_mix_MRA"
+		type = "image"
+		path = "./assets/images/dirtRocks_grass_mix_MRA.kbi"
+		source_path = "./assets/images/source/dirtRocks_grass_mix_MRA.png"
+	}
+	{
+		name = "lushGrass"
+		type = "image"
+		path = "./assets/images/lushGrass.kbi"
+		source_path = "./assets/images/source/lushGrass.jpg"
+	}
+	{
+		name = "lushGrass_NORM"
+		type = "image"
+		path = "./assets/images/lushGrass_NORM.kbi"
+		source_path = "./assets/images/source/lushGrass_NORM.png"
+	}
+	{
+		name = "lushGrass_MRA"
+		type = "image"
+		path = "./assets/images/lushGrass_MRA.kbi"
+		source_path = "./assets/images/source/lushGrass_MRA.png"
+	}
+	{
+		name = "lushGrass_dry"
+		type = "image"
+		path = "./assets/images/lushGrass_dry.kbi"
+		source_path = "./assets/images/source/lushGrass_dry.jpg"
+	}
+	{
+		name = "lushGrass_dry_NORM"
+		type = "image"
+		path = "./assets/images/lushGrass_dry_NORM.kbi"
+		source_path = "./assets/images/source/lushGrass_dry_NORM.png"
+	}
+	{
+		name = "lushGrass_dry_MRA"
+		type = "image"
+		path = "./assets/images/lushGrass_dry_MRA.kbi"
+		source_path = "./assets/images/source/lushGrass_dry_MRA.png"
+	}
+	{
+		name = "yellowFlowers"
+		type = "image"
+		path = "./assets/images/yellowFlowers.kbi"
+		source_path = "./assets/images/source/yellowFlowers.jpg"
+	}
+	{
+		name = "yellowFlowers_NORM"
+		type = "image"
+		path = "./assets/images/yellowFlowers_NORM.kbi"
+		source_path = "./assets/images/source/yellowFlowers_NORM.png"
+	}
+	{
+		name = "yellowFlowers_MRA"
+		type = "image"
+		path = "./assets/images/yellowFlowers_MRA.kbi"
+		source_path = "./assets/images/source/yellowFlowers_MRA.png"
+	}
+	{
+		name = "paverPath"
+		type = "image"
+		path = "./assets/images/paverPath.kbi"
+		source_path = "./assets/images/source/paverPath.jpg"
+	}
+	{
+		name = "paverPath_NORM"
+		type = "image"
+		path = "./assets/images/paverPath_NORM.kbi"
+		source_path = "./assets/images/source/paverPath_NORM.png"
+	}
+	{
+		name = "paverPath_MRA"
+		type = "image"
+		path = "./assets/images/paverPath_MRA.kbi"
+		source_path = "./assets/images/source/paverPath_MRA.png"
+	}
+	{
+		name = "squarePaverPath_Angled"
+		type = "image"
+		path = "./assets/images/squarePaverPath_Angled.kbi"
+		source_path = "./assets/images/source/squarePaverPath_Angled.jpg"
+	}
+	{
+		name = "squarePaverPath_Angled_NORM"
+		type = "image"
+		path = "./assets/images/squarePaverPath_Angled_NORM.kbi"
+		source_path = "./assets/images/source/squarePaverPath_Angled_NORM.png"
+	}
+	{
+		name = "squarePaverPath_Angled_MRA"
+		type = "image"
+		path = "./assets/images/squarePaverPath_Angled_MRA.kbi"
+		source_path = "./assets/images/source/squarePaverPath_Angled_MRA.png"
+	}
+	{
+		name = "dirtRocks_dark"
+		type = "image"
+		path = "./assets/images/dirtRocks_dark.kbi"
+		source_path = "./assets/images/source/dirtRocks_dark.jpg"
+	}
+	{
+		name = "dirtRocks_dark_NORM"
+		type = "image"
+		path = "./assets/images/dirtRocks_dark_NORM.kbi"
+		source_path = "./assets/images/source/dirtRocks_dark_NORM.png"
+	}
+	{
+		name = "dirtRocks_dark_MRA"
+		type = "image"
+		path = "./assets/images/dirtRocks_dark_MRA.kbi"
+		source_path = "./assets/images/source/dirtRocks_dark_MRA.png"
+	}
+	{
+		name = "brownTerrainRockA"
+		type = "image"
+		path = "./assets/images/brownTerrainRockA.kbi"
+		source_path = "./assets/images/source/brownTerrainRockA.jpg"
+	}
+	{
+		name = "brownTerrainRockA_dark"
+		type = "image"
+		path = "./assets/images/brownTerrainRockA_dark.kbi"
+		source_path = "./assets/images/source/brownTerrainRockA_dark.jpg"
+	}
+	{
+		name = "brownTerrainRockA_dark_dirt_mix"
+		type = "image"
+		path = "./assets/images/brownTerrainRockA_dark_dirt_mix.kbi"
+		source_path = "./assets/images/source/brownTerrainRockA_dark_dirt_mix.jpg"
+	}
+	{
 		name = "16___Default"
 		type = "material"
 		path = "./assets/materials/16___Default.kmt"

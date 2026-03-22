@@ -103,6 +103,11 @@ systems = [
 					default_size = 20
 				}
 				{
+					resource_name = "SystemFont.NotoSansCJK-Bold"
+					package_name = "Kohi.Runtime"
+					default_size = 20
+				}
+				{
 					resource_name = "SystemFont.UbuntuMono"
 					package_name = "Kohi.Runtime"
 					default_size = 20

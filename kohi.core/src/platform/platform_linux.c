@@ -1,5 +1,5 @@
-#include "defines.h"
-#include "platform.h"
+#include "platform.h" // must be included here to get platform selection below.
+#include <systemd/sd-bus-protocol.h>
 
 // Linux platform layer.
 #if KPLATFORM_LINUX
@@ -33,15 +33,6 @@
 #	include <dirent.h>
 #	include <ctype.h>
 
-#	include "containers/darray.h"
-#	include "debug/kassert.h"
-#	include "input_types.h"
-#	include "logger.h"
-#	include "memory/kmemory.h"
-#	include "strings/kstring.h"
-
-#	include "kfeatures_runtime.h"
-
 #	if _POSIX_C_SOURCE >= 199309L
 #		include <time.h> // nanosleep
 #	endif
@@ -58,6 +49,18 @@
 #	include <sys/sysinfo.h> // Processor info
 #	include <sys/utsname.h>
 #	include <unistd.h>
+#	include <systemd/sd-bus.h>
+#	include <dlfcn.h> // dlopen
+
+#	include "defines.h"
+#	include "containers/darray.h"
+#	include "debug/kassert.h"
+#	include "input_types.h"
+#	include "logger.h"
+#	include "memory/kmemory.h"
+#	include "strings/kstring.h"
+
+#	include "kfeatures_runtime.h"
 
 typedef struct linux_handle_info {
 	xcb_connection_t* connection;
@@ -108,6 +111,23 @@ typedef struct internal_clipboard_state {
 
 } internal_clipboard_state;
 
+typedef int (*PFN_sd_bus_open_user)(sd_bus** ret);
+typedef int (*PFN_sd_bus_call_method)(sd_bus* bus, const char* destination, const char* path, const char* interface, const char* member, sd_bus_error* reterr_error, sd_bus_message** ret_reply, const char* types, ...);
+typedef int (*PFN_sd_bus_message_new_method_call)(sd_bus* bus, sd_bus_message** ret, const char* destination, const char* path, const char* interface, const char* member);
+typedef int (*PFN_sd_bus_call)(sd_bus* bus, sd_bus_message* m, uint64_t usec, sd_bus_error* reterr_error, sd_bus_message** ret_reply);
+typedef int (*PFN_sd_bus_message_read)(sd_bus_message* m, const char* types, ...);
+typedef int (*PFN_sd_bus_message_skip)(sd_bus_message* m, const char* types);
+typedef int (*PFN_sd_bus_message_append)(sd_bus_message* m, const char* types, ...);
+typedef int (*PFN_sd_bus_message_append_array)(sd_bus_message* m, char type, const void* ptr, size_t size);
+typedef int (*PFN_sd_bus_add_match)(sd_bus* bus, sd_bus_slot** ret_slot, const char* match, sd_bus_message_handler_t callback, void* userdata);
+typedef int (*PFN_sd_bus_process)(sd_bus* bus, sd_bus_message** ret);
+typedef int (*PFN_sd_bus_wait)(sd_bus* bus, uint64_t timeout_usec);
+typedef sd_bus* (*PFN_sd_bus_unref)(sd_bus* bus);
+typedef int (*PFN_sd_bus_message_enter_container)(sd_bus_message* m, char type, const char* contents);
+typedef int (*PFN_sd_bus_message_exit_container)(sd_bus_message* m);
+typedef int (*PFN_sd_bus_message_open_container)(sd_bus_message* m, char type, const char* contents);
+typedef int (*PFN_sd_bus_message_close_container)(sd_bus_message* m);
+
 typedef struct platform_state {
 	Display* display;
 	linux_handle_info handle;
@@ -133,6 +153,26 @@ typedef struct platform_state {
 	u32 last_key_time;
 
 	internal_clipboard_state clipboard;
+
+	void* sd_bus_lib;
+	b8 kill_sd_bus_loop;
+	PFN_sd_bus_open_user ksd_bus_open_user;
+	PFN_sd_bus_call_method ksd_bus_call_method;
+	PFN_sd_bus_message_new_method_call ksd_bus_message_new_method_call;
+	PFN_sd_bus_call ksd_bus_call;
+	PFN_sd_bus_message_read ksd_bus_message_read;
+	PFN_sd_bus_message_skip ksd_bus_message_skip;
+	PFN_sd_bus_message_append ksd_bus_message_append;
+	PFN_sd_bus_message_append_array ksd_bus_message_append_array;
+	PFN_sd_bus_add_match ksd_bus_add_match;
+	PFN_sd_bus_process ksd_bus_process;
+	PFN_sd_bus_wait ksd_bus_wait;
+	PFN_sd_bus_unref ksd_bus_unref;
+	PFN_sd_bus_message_enter_container ksd_bus_message_enter_container;
+	PFN_sd_bus_message_exit_container ksd_bus_message_exit_container;
+	PFN_sd_bus_message_open_container ksd_bus_message_open_container;
+	PFN_sd_bus_message_close_container ksd_bus_message_close_container;
+	const char** ofd_files_temp;
 } platform_state;
 
 static platform_state* state_ptr;
@@ -247,6 +287,28 @@ b8 platform_system_startup(u64* memory_requirement, struct platform_state* state
 
 	state->windows = darray_create(kwindow*);
 
+	state->kill_sd_bus_loop = false;
+	state->sd_bus_lib = dlopen("libsystemd.so", RTLD_LOCAL | RTLD_NOW);
+	if (state->sd_bus_lib) {
+		state->ksd_bus_open_user = dlsym(state->sd_bus_lib, "sd_bus_open_user");
+		state->ksd_bus_call_method = dlsym(state->sd_bus_lib, "sd_bus_call_method");
+		state->ksd_bus_message_new_method_call = dlsym(state->sd_bus_lib, "sd_bus_message_new_method_call");
+		state->ksd_bus_call = dlsym(state->sd_bus_lib, "sd_bus_call");
+		state->ksd_bus_message_read = dlsym(state->sd_bus_lib, "sd_bus_message_read");
+		state->ksd_bus_message_skip = dlsym(state->sd_bus_lib, "sd_bus_message_skip");
+		state->ksd_bus_message_append = dlsym(state->sd_bus_lib, "sd_bus_message_append");
+		state->ksd_bus_message_append_array = dlsym(state->sd_bus_lib, "sd_bus_message_append_array");
+		state->ksd_bus_add_match = dlsym(state->sd_bus_lib, "sd_bus_add_match");
+		state->ksd_bus_process = dlsym(state->sd_bus_lib, "sd_bus_process");
+		state->ksd_bus_wait = dlsym(state->sd_bus_lib, "sd_bus_wait");
+		state->ksd_bus_unref = dlsym(state->sd_bus_lib, "sd_bus_unref");
+		state->ksd_bus_message_enter_container = dlsym(state->sd_bus_lib, "sd_bus_message_enter_container");
+		state->ksd_bus_message_exit_container = dlsym(state->sd_bus_lib, "sd_bus_message_exit_container");
+		state->ksd_bus_message_open_container = dlsym(state->sd_bus_lib, "sd_bus_message_open_container");
+		state->ksd_bus_message_close_container = dlsym(state->sd_bus_lib, "sd_bus_message_close_container");
+	} else {
+		KERROR("Linux platform error: Unable to load sd-bus. Some platform functions (such as browsing for files) may not be available.");
+	}
 	return true;
 }
 
@@ -1687,6 +1749,241 @@ void platform_clipboard_content_set(kwindow* window, kclipboard_content_type typ
 	cb->clipboard_owned = true;
 
 	xcb_flush(state_ptr->handle.connection);
+}
+
+static i32 openfiledialog_on_response(sd_bus_message* m, void* user_data, sd_bus_error* error) {
+	u32 response;
+	state_ptr->ksd_bus_message_enter_container(m, SD_BUS_TYPE_STRUCT, "u a{sv}");
+
+	// 0=success, 1=cancel
+	state_ptr->ksd_bus_message_read(m, "u", &response);
+	if (response != 0) {
+		KTRACE("User cancelled.");
+		state_ptr->kill_sd_bus_loop = true;
+		return 0;
+	}
+
+	// Read the results dictionary
+	state_ptr->ksd_bus_message_enter_container(m, SD_BUS_TYPE_ARRAY, "{sv}");
+
+	state_ptr->ofd_files_temp = darray_create(const char*);
+
+	const char* key;
+	while (state_ptr->ksd_bus_message_enter_container(m, SD_BUS_TYPE_DICT_ENTRY, "sv")) {
+		state_ptr->ksd_bus_message_read(m, "s", &key);
+		if (strings_equal(key, "uris")) {
+			state_ptr->ksd_bus_message_enter_container(m, SD_BUS_TYPE_VARIANT, "as");
+			state_ptr->ksd_bus_message_enter_container(m, SD_BUS_TYPE_ARRAY, "s");
+
+			const char* uri;
+			while (state_ptr->ksd_bus_message_read(m, "s", &uri)) {
+				// Add to selection list, sanitizing "file://" from the front.
+				// TODO: May need to decode this path too, to handle spaces, etc.
+				darray_push(state_ptr->ofd_files_temp, string_duplicate(uri + 7));
+				/* KTRACE("Selected: '%s'", uri); */
+			}
+
+			state_ptr->ksd_bus_message_exit_container(m); // array
+			state_ptr->ksd_bus_message_exit_container(m); // variant
+		} else {
+			state_ptr->ksd_bus_message_skip(m, "v");
+		}
+
+		state_ptr->ksd_bus_message_exit_container(m); // dictionary entry
+	}
+
+	state_ptr->kill_sd_bus_loop = true;
+
+	return 0;
+}
+
+typedef struct open_file_filter_type_data {
+	const char* description;
+	u8 extension_count;
+	const char** extensions;
+} open_file_filter_type_data;
+
+static open_file_filter_type_data* parse_open_file_filters(const char* filter_str, u8* out_count) {
+	if (!filter_str || !out_count) {
+		return KNULL;
+	}
+
+	char** parts = darray_create(char*);
+	u32 parts_count = string_split(filter_str, '|', &parts, true, false, false);
+	if (parts_count < 2) {
+		KERROR("Invalid open file filter string '%s'. Must have at least 2 parts.");
+		*out_count = 0;
+		return KNULL;
+	}
+
+	u32 type_count = parts_count / 2;
+	open_file_filter_type_data* types = KALLOC_TYPE_CARRAY(open_file_filter_type_data, type_count);
+	for (u32 i = 0; i < type_count; ++i) {
+		char** extensions = darray_create(char*);
+		u32 extensions_count = string_split(parts[(i * 2) + 1], ';', &extensions, true, false, false);
+		open_file_filter_type_data type_data = {
+			.description = string_duplicate(parts[(i * 2)]),
+			.extension_count = (u8)extensions_count,
+		};
+		type_data.extensions = KALLOC_TYPE_CARRAY(const char*, extensions_count);
+		for (u8 j = 0; j < extensions_count; ++j) {
+			type_data.extensions[j] = string_duplicate(extensions[j]);
+		}
+		string_cleanup_split_darray(extensions);
+
+		types[i] = type_data;
+	}
+
+	string_cleanup_split_darray(parts);
+
+	*out_count = type_count;
+	return types;
+}
+
+platform_open_file_dialog_result platform_open_file_dialog_open(platform_open_file_dialog_options options) {
+	platform_open_file_dialog_result result = {
+		.file_count = 0,
+		.file_paths = KNULL,
+		.success = false,
+	};
+	if (!state_ptr->sd_bus_lib) {
+		KERROR("Linux platform: open file dialog not available.");
+		return result;
+	}
+
+	state_ptr->kill_sd_bus_loop = false;
+
+	sd_bus* bus = KNULL;
+	sd_bus_message* m = KNULL;
+	sd_bus_message* reply = KNULL;
+	sd_bus_error err = SD_BUS_ERROR_NULL;
+
+	i32 r = state_ptr->ksd_bus_open_user(&bus);
+	if (r < 0) {
+		KERROR("Failed to connect to bus. Open file dialog cannot open.");
+		return result;
+	}
+
+	r = state_ptr->ksd_bus_message_new_method_call(
+		bus,
+		&m,
+		"org.freedesktop.portal.Desktop",
+		"/org/freedesktop/portal/desktop",
+		"org.freedesktop.portal.FileChooser",
+		"OpenFile");
+
+	// Parent and title
+	const char* title = (options.title) ? options.title : "Open File";
+	state_ptr->ksd_bus_message_append(m, "ss", "", title);
+
+	// Options dictionary
+	state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_ARRAY, "{sv}");
+
+	// multiselect
+	if (options.allow_multiselect) {
+		state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_DICT_ENTRY, "sv");
+		state_ptr->ksd_bus_message_append(m, "s", "multiple");
+		state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_VARIANT, "b");
+		state_ptr->ksd_bus_message_append(m, "b", 1);
+		state_ptr->ksd_bus_message_close_container(m); // Close variant
+		state_ptr->ksd_bus_message_close_container(m); // Close dict entry
+	}
+
+	// starting_dir
+	{
+		const char* path = options.starting_dir ? options.starting_dir : ".";
+
+		state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_DICT_ENTRY, "sv");
+		state_ptr->ksd_bus_message_append(m, "s", "current_folder");
+		state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_VARIANT, "ay");
+		state_ptr->ksd_bus_message_append_array(m, SD_BUS_TYPE_BYTE, path, string_length(path));
+		state_ptr->ksd_bus_message_close_container(m); // Close variant
+		state_ptr->ksd_bus_message_close_container(m); // Close dict entry
+	}
+
+	// Filters, if included. If not, a default of *.*/all files is assumed.
+	if (options.filter) {
+		u8 type_count = 0;
+		open_file_filter_type_data* types = parse_open_file_filters(options.filter, &type_count);
+		if (type_count > 0) {
+			state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_DICT_ENTRY, "sv");
+			state_ptr->ksd_bus_message_append(m, "s", "filters");
+			state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_VARIANT, "a(sa(us))");
+			state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_ARRAY, "(sa(us))");
+
+			// Each type
+			for (u8 i = 0; i < type_count; ++i) {
+				open_file_filter_type_data* type = &types[i];
+				state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_STRUCT, "sa(us)");
+				state_ptr->ksd_bus_message_append(m, "s", type->description);
+				KTRACE("Type desc: '%s'", type->description);
+
+				state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_ARRAY, "(us)");
+
+				// Each extension for the type.
+				for (u8 j = 0; j < type->extension_count; ++j) {
+					const char* ext = type->extensions[j];
+					KTRACE("ext: '%s'", ext);
+					state_ptr->ksd_bus_message_open_container(m, SD_BUS_TYPE_STRUCT, "us");
+					state_ptr->ksd_bus_message_append(m, "u", 0);
+					state_ptr->ksd_bus_message_append(m, "s", ext);
+					state_ptr->ksd_bus_message_close_container(m); // struct
+																   //
+				}
+
+				state_ptr->ksd_bus_message_close_container(m); // type exts array
+				state_ptr->ksd_bus_message_close_container(m); // type struct
+			}
+
+			// Close filters containers
+			state_ptr->ksd_bus_message_close_container(m); // array
+			state_ptr->ksd_bus_message_close_container(m); // variant
+			state_ptr->ksd_bus_message_close_container(m); // struct
+		}
+	}
+	state_ptr->ksd_bus_message_close_container(m); // Close options
+
+	state_ptr->ksd_bus_call(bus, m, 0, &err, &reply);
+
+	if (r < 0) {
+		KERROR("Call failed with '%s'. Open file dialog cannot open.", err.message);
+		return result;
+	}
+
+	// Read returned object path.
+	const char* request_path = KNULL;
+	state_ptr->ksd_bus_message_read(reply, "o", &request_path);
+
+	KTRACE("Request path: '%s'", request_path);
+
+	// Listen for response signal.
+	state_ptr->ksd_bus_add_match(
+		bus,
+		KNULL,
+		"type='signal',interface='org.freedesktop.portal.Request'",
+		openfiledialog_on_response,
+		KNULL // user_data
+	);
+
+	// Event loop
+	while (true) {
+		state_ptr->ksd_bus_process(bus, KNULL);
+		state_ptr->ksd_bus_wait(bus, (u64)500000); // Half second between iterations.
+		if (state_ptr->kill_sd_bus_loop) {
+			break;
+		}
+	}
+	state_ptr->kill_sd_bus_loop = false;
+
+	// Read from results list here and return listing of file paths.
+	result.success = state_ptr->ofd_files_temp != KNULL;
+	result.file_count = (u8)darray_length(state_ptr->ofd_files_temp);
+	KDUPLICATE_TYPE_CARRAY(result.file_paths, state_ptr->ofd_files_temp, const char*, result.file_count);
+	darray_destroy(state_ptr->ofd_files_temp);
+	state_ptr->ofd_files_temp = KNULL;
+
+	state_ptr->ksd_bus_unref(bus);
+	return result;
 }
 
 static kwindow* window_from_handle(xcb_window_t window) {

@@ -862,3 +862,15 @@ typedef struct colour_3d_global_ubo {
 typedef struct colour_3d_immediate_data {
 	mat4 model;
 } colour_3d_immediate_data;
+
+/** @brief Structure representing the global UBO data for the included debug shader. */
+typedef struct debug_shader_global_ubo_data {
+	mat4 projection;
+	mat4 view;
+} debug_shader_global_ubo_data;
+
+/** @brief Structure representing the immediate data for the included debug shader. */
+typedef struct debug_shader_immediate_data {
+	mat4 model;
+	vec4 colour;
+} debug_shader_immediate_data;

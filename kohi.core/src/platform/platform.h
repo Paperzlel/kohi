@@ -521,3 +521,26 @@ KAPI void platform_request_clipboard_content(kwindow* window);
 
 // Used for copying from the application.
 KAPI void platform_clipboard_content_set(kwindow* window, kclipboard_content_type type, u32 size, void* content);
+
+typedef struct platform_open_file_dialog_options {
+	// window title. If null, "Open File" is used.
+	const char* title;
+	// starting directory. If null, "." is used.
+	const char* starting_dir;
+	// Allow multiple files to be selected.
+	b8 allow_multiselect;
+
+	// NOTE: Filters can look like this:
+	// "Image Files (*.bmp;*.jpg;*.gif;*.png)|*.bmp;*.jpg;*.gif;*.png|All files (*.*)|*.*"
+	// The format of the string is "<group 1 description>|<group 1 exts delim by ;>|<group 2 description>|<group 2 exts delim by ;>"
+	// If any part of this is invalid, the filter is ignored.
+	const char* filter;
+} platform_open_file_dialog_options;
+
+typedef struct platform_open_file_dialog_result {
+	b8 success;
+	u8 file_count;
+	const char** file_paths;
+} platform_open_file_dialog_result;
+
+KAPI platform_open_file_dialog_result platform_open_file_dialog_open(platform_open_file_dialog_options options);

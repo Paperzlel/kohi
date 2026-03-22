@@ -58,16 +58,6 @@ typedef struct shadow_hf_terrain_immediate_data {
 	u32 cascade_index;
 } shadow_hf_terrain_immediate_data;
 
-typedef struct world_debug_global_ubo {
-	mat4 projection;
-	mat4 view;
-} world_debug_global_ubo;
-
-typedef struct world_debug_immediate_data {
-	mat4 model;
-	vec4 colour;
-} world_debug_immediate_data;
-
 typedef struct depth_prepass_global_ubo {
 	mat4 projection;
 	mat4 view;
@@ -1415,19 +1405,19 @@ b8 kforward_renderer_render_frame(kforward_renderer* renderer, frame_data* p_fra
 			kshader_system_use_with_topology(renderer->world_debug_pass.debug_shader, PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT, VERTEX_LAYOUT_INDEX_STATIC);
 
 			// Global UBO data
-			world_debug_global_ubo global_ubo_data = {
+			debug_shader_global_ubo_data global_ubo_data = {
 				.view = render_data->world_debug_data.view,
 				.projection = render_data->world_debug_data.projection};
-			kshader_set_binding_data(renderer->world_debug_pass.debug_shader, 0, renderer->world_debug_pass.debug_set0_instance_id, 0, 0, &global_ubo_data, sizeof(world_debug_global_ubo));
+			kshader_set_binding_data(renderer->world_debug_pass.debug_shader, 0, renderer->world_debug_pass.debug_set0_instance_id, 0, 0, &global_ubo_data, sizeof(global_ubo_data));
 			kshader_apply_binding_set(renderer->world_debug_pass.debug_shader, 0, renderer->world_debug_pass.debug_set0_instance_id);
 
 			for (u32 i = 0; i < render_data->world_debug_data.geometry_count; ++i) {
 				kdebug_geometry_render_data* geo = &render_data->world_debug_data.geometries[i];
 
-				world_debug_immediate_data immediate_data = {
+				debug_shader_immediate_data immediate_data = {
 					.model = geo->model,
 					.colour = geo->colour};
-				kshader_set_immediate_data(renderer->world_debug_pass.debug_shader, &immediate_data, sizeof(world_debug_immediate_data));
+				kshader_set_immediate_data(renderer->world_debug_pass.debug_shader, &immediate_data, sizeof(immediate_data));
 
 				// Draw it.
 				b8 includes_index_data = geo->geo.index_count > 0;

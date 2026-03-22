@@ -2,6 +2,7 @@
 
 #include "editor/texture_browser.h"
 #include "kui_types.h"
+#include "math/geometry.h"
 #include "math/math_types.h"
 #include "systems/texture_system.h"
 #include "world/heightfield_terrain.h"
@@ -94,7 +95,10 @@ typedef struct editor_state {
 
 	keditor_gizmo_pass_render_data* editor_gizmo_render_data;
 
+	// position and colour vertex data
 	kshader colour_shader;
+	// position only vertex data, colour applied via UBO
+	kshader debug_shader;
 	u8 debug_point_count;
 	colour_vertex_3d debug_points[256];
 	u64 debug_points_vertex_buffer_offset;
@@ -209,6 +213,7 @@ typedef struct editor_state {
 	kui_control hft_chunk_material_labels[5];
 	kui_control hft_chunk_material_textboxes[5];
 	hf_chunk* selected_chunk;
+	kgeometry hft_selected_chunk_debug_box;
 
 	kui_control hft_mode_remove_content;
 

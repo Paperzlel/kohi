@@ -17,11 +17,13 @@
 #include "input_types.h"
 #include "kui_system.h"
 #include "kui_types.h"
+#include "math/geometry.h"
 #include "math/geometry_2d.h"
 #include "math/math_types.h"
 #include "memory/kmemory.h"
 #include "plugins/plugin_types.h"
 #include "renderer/renderer_frontend.h"
+#include "renderer/renderer_types.h"
 #include "runtime_defines.h"
 #include "strings/kname.h"
 #include "strings/kstring.h"
@@ -202,9 +204,16 @@ b8 editor_initialize(u64* memory_requirement, struct editor_state* state, kname 
 	state->colour_shader = kshader_system_get(kname_create(SHADER_NAME_RUNTIME_COLOUR_3D), kname_create(PACKAGE_NAME_RUNTIME));
 	KASSERT_DEBUG(state->colour_shader != KSHADER_INVALID);
 
+	state->debug_shader = kshader_system_get(kname_create(SHADER_NAME_RUNTIME_DEBUG_3D), kname_create(PACKAGE_NAME_RUNTIME));
+	KASSERT_DEBUG(state->debug_shader != KSHADER_INVALID);
+
 	// Allocate some space in the vertex buffer for the debug points to be rendered.
 	state->debug_points_vertex_buffer_offset = 0;
 	renderer_renderbuffer_allocate(state->renderer, state->standard_vertex_buffer, sizeof(colour_vertex_3d) * 256, &state->debug_points_vertex_buffer_offset);
+
+	// HF Terrain editor: selected chunk debug shape.
+	f32 chunk_dim = HF_CHUNK_QUAD_COUNT * HF_QUAD_SCALE;
+	state->hft_selected_chunk_debug_box = geometry_generate_line_box3d_typed(vec3_create(chunk_dim, 1.0f, chunk_dim), INVALID_KNAME, KGEOMETRY_TYPE_3D_STATIC_POSITION_ONLY, vec3_zero());
 
 	// Editor camera. Use the same view properties of the world camera, but different starting position/rotation.
 	vec3 editor_cam_pos = (vec3){-2.571f, 4.75f, 0.929f};
@@ -1364,6 +1373,45 @@ b8 editor_render(struct editor_state* state, frame_data* p_frame_data, kcamera c
 		renderer_end_debug_label(); // debug points label
 	}
 
+	// Editor-specific Debug shapes
+	// TODO: debug shape renderer?
+	renderer_begin_debug_label("Editor debug shapes", (vec3){0.4f, 1.0f, 0.3});
+	if (state->mode == EDITOR_MODE_HF_TERRAIN && state->hft_edit_mode == HF_TERRAIN_EDIT_MODE_CHUNK) {
+		KASSERT(kshader_system_use_with_topology(state->debug_shader, PRIMITIVE_TOPOLOGY_TYPE_LINE_LIST_BIT, 0));
+
+		// Global UBO data
+		debug_shader_global_ubo_data global_ubo_data = {
+			.view = kcamera_get_view(current_camera),
+			.projection = kcamera_get_projection(current_camera)};
+		// "Global" should always be instance 0
+		u32 instance_id = 0;
+		kshader_set_binding_data(state->debug_shader, 0, instance_id, 0, 0, &global_ubo_data, sizeof(global_ubo_data));
+		kshader_apply_binding_set(state->debug_shader, 0, instance_id);
+
+		// Render the debug data.
+		kgeometry* geo = &state->hft_selected_chunk_debug_box;
+
+		debug_shader_immediate_data immediate_data = {
+			.model = mat4_identity(),						// HACK: Should this use a transform?
+			.colour = vec4_create(1.0f, 0.5f, 0.0f, 1.0f)}; // HACK: hardcoded colour.
+		kshader_set_immediate_data(state->debug_shader, &immediate_data, sizeof(immediate_data));
+
+		// Draw it.
+		b8 includes_index_data = geo->index_count > 0;
+
+		if (!renderer_renderbuffer_draw(state->renderer, state->standard_vertex_buffer, geo->vertex_buffer_offset, geo->vertex_count, 0, includes_index_data)) {
+			KERROR("renderer_renderbuffer_draw failed to draw vertex buffer;");
+			return false;
+		}
+		if (includes_index_data) {
+			if (!renderer_renderbuffer_draw(state->renderer, state->index_buffer, geo->index_buffer_offset, geo->index_count, 0, !includes_index_data)) {
+				KERROR("renderer_renderbuffer_draw failed to draw index buffer;");
+				return false;
+			}
+		}
+	}
+	renderer_end_debug_label(); // debug shapes label
+
 	// Editor end render
 	renderer_end_rendering(state->renderer, p_frame_data);
 
@@ -1853,6 +1901,26 @@ static void editor_command_execute(console_command_context context) {
 
 		// Select it
 		editor_select_entities(state, 1, &new_entity);
+	} else if (strings_equal(context.command_name, "ofd")) {
+		// HACK: open file dialog hack for testing. Remove this.
+		platform_open_file_dialog_options options = {
+			.allow_multiselect = true,
+			.title = "Select some danged files, ya dingus!",
+			.filter = "Image Files (*.bmp;*.jpg;*.gif;*.png)|*.bmp;*.jpg;*.gif;*.png|All files (*.*)|*.*",
+		};
+		platform_open_file_dialog_result result = platform_open_file_dialog_open(options);
+		KTRACE("Open file dialog success: %s", bool_to_string(result.success));
+		for (u8 i = 0; i < result.file_count; ++i) {
+			KTRACE("File selected (%u): '%s'", i, result.file_paths[i]);
+		}
+
+		// cleanup result
+		if (result.file_count) {
+			for (u8 i = 0; i < result.file_count; ++i) {
+				string_free(result.file_paths[i]);
+			}
+			KFREE_TYPE_CARRAY(result.file_paths, const char*, result.file_count);
+		}
 	}
 }
 
@@ -1882,6 +1950,9 @@ static void editor_register_commands(struct editor_state* state) {
 	KASSERT(console_command_register("editor_set_selected_rotation", 4, 4, state, editor_command_execute));
 	KASSERT(console_command_register("editor_set_selected_scale", 3, 3, state, editor_command_execute));
 	KASSERT(console_command_register("editor_add_model", 2, 3, state, editor_command_execute));
+
+	// HACK: testing ofd... remove this
+	KASSERT(console_command_register("ofd", 0, 0, state, editor_command_execute));
 }
 
 static void editor_unregister_commands(struct editor_state* state) {
@@ -1892,6 +1963,9 @@ static void editor_unregister_commands(struct editor_state* state) {
 	console_command_unregister("editor_set_selected_rotation");
 	console_command_unregister("editor_set_selected_scale");
 	console_command_unregister("editor_add_model");
+
+	// HACK: testing ofd... remove this
+	console_command_unregister("ofd");
 }
 
 void editor_on_lib_load(struct editor_state* state) {
@@ -2682,6 +2756,10 @@ static b8 editor_on_button(u16 code, void* sender, void* listener_inst, event_co
 									hf_block* p_block = hf_terrain_get_block_at(t, block.x, block.z);
 									hf_chunk* p_chunk = hf_terrain_block_get_chunk_at(p_block, chunk.x, chunk.z);
 									state->selected_chunk = p_chunk;
+
+									// Update the selected chunk visual debug box.
+									geometry_recalculate_line_box3d_by_extents(&state->hft_selected_chunk_debug_box, p_chunk->aabb, vec3_zero());
+									renderer_geometry_vertex_update(&state->hft_selected_chunk_debug_box, 0, state->hft_selected_chunk_debug_box.vertex_count, state->hft_selected_chunk_debug_box.vertices, false);
 
 									// Set the selected chunk and update the UI controls.
 									for (u8 i = 0; i < 5; ++i) {
