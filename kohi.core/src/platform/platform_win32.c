@@ -3,18 +3,6 @@
 // Windows platform layer.
 #if _WIN32 // KPLATFORM_WINDOWS // FIXME: macro doesn't highlight correctly in vscode
 
-#	include "containers/darray.h"
-#	include "logger.h"
-#	include "memory/kmemory.h"
-#	include "strings/kstring.h"
-#	include "threads/kmutex.h"
-#	include "threads/ksemaphore.h"
-#	include "threads/kthread.h"
-#	include "time/kclock.h"
-#	include "platform/kfeatures_compile.h"
-#	include "platform/kfeatures_runtime.h"
-#	include <input_types.h>
-
 #	define WIN32_LEAN_AND_MEAN
 #	include <windows.h>
 #	include <windowsx.h> // param input extraction
@@ -34,6 +22,18 @@
 #	include <winbase.h>
 #	include <winnls.h>
 #	include <winuser.h>
+#	include <commdlg.h>
+
+#	include "containers/darray.h"
+#	include "logger.h"
+#	include "memory/kmemory.h"
+#	include "strings/kstring.h"
+#	include "threads/kmutex.h"
+#	include "threads/ksemaphore.h"
+#	include "threads/kthread.h"
+#	include "time/kclock.h"
+#	include "platform/kfeatures_runtime.h"
+#	include "input_types.h"
 
 #	define UNIX_EPOCH_TO_FILETIME_NS 116444736000000000ULL
 #	define FILETIME_TICK_NS 100ULL
@@ -41,6 +41,7 @@
 #	pragma comment(lib, "advapi32.lib")
 #	pragma comment(lib, "kernel32.lib")
 #	pragma comment(lib, "ntdll.lib")
+#	pragma comment(lib, "comdlg32.lib")
 
 typedef LONG NTSTATUS;
 
@@ -1352,13 +1353,158 @@ win32_clipboard_fire:
 	}
 }
 
+typedef struct file_list {
+	const char** items;
+	u32 count;
+} file_list;
+
+file_list parse_open_filename(const wchar_t* buffer) {
+	file_list result = {0};
+
+	if (!buffer || !buffer[0]) {
+		return result;
+	}
+
+	const wchar_t* p = buffer;
+
+	// First string
+	const wchar_t* first = p;
+	u64 first_len = wcslen(first);
+
+	p += first_len + 1;
+
+	// If next is null → single file
+	if (*p == L'\0') {
+		result.items = KALLOC_TYPE_CARRAY(const char*, 1);
+		result.items[0] = wcstr_to_cstr(first);
+		result.count = 1;
+		return result;
+	}
+
+	// Otherwise: directory + multiple files
+	const wchar_t* dir = first;
+
+	// Count files
+	u32 count = 0;
+	const wchar_t* tmp = p;
+	while (*tmp) {
+		tmp += wcslen(tmp) + 1;
+		count++;
+	}
+
+	result.items = KALLOC_TYPE_CARRAY(const char*, count);
+	result.count = count;
+
+	for (u32 i = 0; i < count; ++i) {
+		const wchar_t* file = p;
+
+		u64 dir_len = wcslen(dir);
+		u64 file_len = wcslen(file);
+
+		// dir + '\' + file + null
+		u64 total = dir_len + 1 + file_len + 1;
+
+		wchar_t* full = (wchar_t*)malloc(sizeof(wchar_t) * total);
+
+		wcscpy(full, dir);
+		full[dir_len] = L'\\';
+		wcscpy(full + dir_len + 1, file);
+
+		result.items[i] = wcstr_to_cstr(full);
+
+		p += file_len + 1;
+	}
+
+	return result;
+}
+
+void free_file_list(file_list* list) {
+	if (!list || !list->items) {
+		return;
+	}
+
+	for (u32 i = 0; i < list->count; ++i) {
+		string_free(list->items[i]);
+	}
+
+	KFREE_TYPE_CARRAY(list->items, const char*, list->count);
+
+	list->items = NULL;
+	list->count = 0;
+}
+
+static wchar_t* build_filter_string(const wchar_t* input) {
+	if (!input) {
+		return KNULL;
+	}
+
+	u64 len = wcslen(input);
+
+	// Worst case: every char becomes itself, plus we add one extra null at the end
+	wchar_t* out = (wchar_t*)KALLOC_TYPE_CARRAY(wchar_t, (len + 2));
+	if (!out) {
+		return KNULL;
+	}
+
+	u64 j = 0;
+
+	for (u64 i = 0; i < len; ++i) {
+		if (input[i] == L'|') {
+			out[j++] = L'\0';
+		} else {
+			out[j++] = input[i];
+		}
+	}
+
+	// Double null terminate
+	out[j++] = L'\0';
+	out[j++] = L'\0';
+
+	return out;
+}
+
 platform_open_file_dialog_result platform_open_file_dialog_open(platform_open_file_dialog_options options) {
-	// TODO: implement this
 	platform_open_file_dialog_result result = {
 		.success = false,
 		.file_count = 0,
 		.file_paths = KNULL,
 	};
+
+	OPENFILENAMEW ofn;
+	kzero_memory(&ofn, sizeof(ofn));
+
+	wchar_t path[32768];
+	path[0] = L'\0';
+
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = NULL;
+	ofn.lpstrFile = path;
+	ofn.nMaxFile = 32768;
+
+	// Filter
+	ofn.lpstrFilter = options.filter ? build_filter_string(cstr_to_wcstr(options.filter)) : L"All Files (*.*)\0*.*\0";
+
+	ofn.nFilterIndex = 1;
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+	if (options.allow_multiselect) {
+		ofn.Flags |= OFN_ALLOWMULTISELECT | OFN_EXPLORER;
+	}
+	ofn.lpstrTitle = options.title ? cstr_to_wcstr(options.title) : L"Open File";
+
+	if (GetOpenFileNameW(&ofn) != 0) {
+		file_list fl = parse_open_filename(path);
+		for (u32 i = 0; i < fl.count; ++i) {
+			KDEBUG("Selected: '%s'", fl.items[i]);
+		}
+		result.success = true;
+		result.file_count = fl.count;
+		result.file_paths = fl.items;
+	}
+
+	if (options.title) {
+		// Free converted string if applicable.
+		wcstr_free(ofn.lpstrTitle);
+	}
 
 	return result;
 }
