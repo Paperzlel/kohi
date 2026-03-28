@@ -9,15 +9,15 @@ The items in this list are not in any particular order. This list will be update
   - [x] Albedo maps
   - [x] Normal maps
   - [x] MRA maps
-- [ ] Terrain editor
-  - [ ] General properites editor (select global materials for terrain, etc.)
+- [x] Terrain editor
+  - [x] General properites editor (select global materials for terrain, etc.)
   - [x] Material painting
   - [x] Elevation changes
   - [x] Chunk editor, allows to assign 5 terrain materials unique per chunk.
 - [ ] Platform layer
-  - [ ] x-platform open/save file dialog
+  - [ ] x-platform open file dialog
     - [x] Linux (systemd for now)
-    - [ ] Windows
+    - [x] Windows
     - [ ] macOS
 - [ ] Asset manifest
   - [x] Query asset system by type, name, package, etc. or some combination of that.
@@ -41,7 +41,7 @@ The items in this list are not in any particular order. This list will be update
   - [ ] Import button
 - [ ] Terrain editor
   - [ ] Deletion of quads
-  - [ ] Colour painting (second map akin to splatmap to integrate extra bit of colour)
+  - [?] Colour painting (second map akin to splatmap to integrate extra bit of colour)
 - [x] Terrain materials (Special blended, simplified PBR)
   - [ ] Emissive
 - [ ] Asset manifest

@@ -65,6 +65,7 @@ typedef struct texture_browser {
 	kui_control inspector_label;
 	kui_control confirm_btn;
 	kui_control cancel_btn;
+	kui_control import_btn;
 } texture_browser;
 
 typedef struct texture_browser_create_info {

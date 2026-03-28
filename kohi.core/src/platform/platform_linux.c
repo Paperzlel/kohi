@@ -1978,7 +1978,9 @@ platform_open_file_dialog_result platform_open_file_dialog_open(platform_open_fi
 	// Read from results list here and return listing of file paths.
 	result.success = state_ptr->ofd_files_temp != KNULL;
 	result.file_count = (u8)darray_length(state_ptr->ofd_files_temp);
-	KDUPLICATE_TYPE_CARRAY(result.file_paths, state_ptr->ofd_files_temp, const char*, result.file_count);
+	if (result.success) {
+		KDUPLICATE_TYPE_CARRAY(result.file_paths, state_ptr->ofd_files_temp, const char*, result.file_count);
+	}
 	darray_destroy(state_ptr->ofd_files_temp);
 	state_ptr->ofd_files_temp = KNULL;
 

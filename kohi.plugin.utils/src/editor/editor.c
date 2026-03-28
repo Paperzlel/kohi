@@ -1902,6 +1902,7 @@ static void editor_command_execute(console_command_context context) {
 		// Select it
 		editor_select_entities(state, 1, &new_entity);
 	} else if (strings_equal(context.command_name, "ofd")) {
+
 		// HACK: open file dialog hack for testing. Remove this.
 		platform_open_file_dialog_options options = {
 			.allow_multiselect = true,

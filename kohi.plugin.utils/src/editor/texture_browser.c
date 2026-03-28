@@ -18,11 +18,13 @@
 #include <systems/texture_system.h>
 #include <utils/render_type_utils.h>
 
+#include "platform/platform.h"
 #include "texture_browser.h"
 
 static void texture_browser_open_internal(texture_browser* tb);
 static b8 texture_browser_confirm_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static b8 texture_browser_cancel_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
+static b8 texture_browser_import_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
 static void texture_browser_search_textbox_on_key(kui_state* state, kui_control self, kui_keyboard_event evt);
 static void texture_browser_search_game_pak_checkbox_check_changed(struct kui_state* state, kui_control self, struct kui_checkbox_event event);
 static b8 texture_browser_imagebox_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event);
@@ -115,7 +117,7 @@ void texture_browser_create(texture_browser* tb, texture_browser_create_info cre
 	KASSERT(kui_system_control_add_child(tb->ui, tb->bg_panel, tb->confirm_btn));
 	kui_control_set_user_data(tb->ui, tb->confirm_btn, sizeof(*tb), tb, false, MEMORY_TAG_EDITOR);
 	kui_button_control_width_set(tb->ui, tb->confirm_btn, 190);
-	kui_control_position_set(tb->ui, tb->confirm_btn, (vec3){tb->right_col_x + 5, tb->window_size.y - 60, 0});
+	kui_control_position_set(tb->ui, tb->confirm_btn, (vec3){tb->right_col_x + 5, tb->window_size.y - 45, 0});
 	kui_control_set_on_click(tb->ui, tb->confirm_btn, texture_browser_confirm_button_clicked);
 
 	// Cancel button.
@@ -123,8 +125,16 @@ void texture_browser_create(texture_browser* tb, texture_browser_create_info cre
 	KASSERT(kui_system_control_add_child(tb->ui, tb->bg_panel, tb->cancel_btn));
 	kui_control_set_user_data(tb->ui, tb->cancel_btn, sizeof(*tb), tb, false, MEMORY_TAG_EDITOR);
 	kui_button_control_width_set(tb->ui, tb->cancel_btn, 190);
-	kui_control_position_set(tb->ui, tb->cancel_btn, (vec3){tb->right_col_x + 5 + 190 + 5, tb->window_size.y - 60, 0});
+	kui_control_position_set(tb->ui, tb->cancel_btn, (vec3){tb->right_col_x + 5 + 190 + 5, tb->window_size.y - 45, 0});
 	kui_control_set_on_click(tb->ui, tb->cancel_btn, texture_browser_cancel_button_clicked);
+
+	// Import button.
+	tb->import_btn = kui_button_control_create_with_text(tb->ui, "import_btn", FONT_TYPE_SYSTEM, tb->font_name, tb->font_size, "Import");
+	KASSERT(kui_system_control_add_child(tb->ui, tb->bg_panel, tb->import_btn));
+	kui_control_set_user_data(tb->ui, tb->import_btn, sizeof(*tb), tb, false, MEMORY_TAG_EDITOR);
+	kui_button_control_width_set(tb->ui, tb->import_btn, 190);
+	kui_control_position_set(tb->ui, tb->import_btn, (vec3){5, tb->window_size.y - 45, 0});
+	kui_control_set_on_click(tb->ui, tb->import_btn, texture_browser_cancel_button_clicked);
 }
 
 void texture_browser_destroy(texture_browser* tb) {
@@ -386,6 +396,34 @@ static b8 texture_browser_cancel_button_clicked(struct kui_state* state, kui_con
 
 	// Just close the window.
 	texture_browser_close(tb);
+	return false;
+}
+
+static b8 texture_browser_import_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
+	kui_base_control* base = kui_system_get_base(state, self);
+	texture_browser* tb = base->user_data;
+
+	// TODO: open file dialog
+	platform_open_file_dialog_options options = {
+		.allow_multiselect = false, // TODO: import multiple textures at once.
+		.title = "Select Image Source Assets",
+		.filter = "Image Files (*.bmp;*.jpg;*.gif;*.png)|*.bmp;*.jpg;*.gif;*.png|All files (*.*)|*.*",
+	};
+	platform_open_file_dialog_result result = platform_open_file_dialog_open(options);
+	KTRACE("Open file dialog success: %s", bool_to_string(result.success));
+	for (u8 i = 0; i < result.file_count; ++i) {
+		KTRACE("File selected (%u): '%s'", i, result.file_paths[i]);
+	}
+
+	// cleanup result
+	if (result.file_count) {
+		for (u8 i = 0; i < result.file_count; ++i) {
+			string_free(result.file_paths[i]);
+		}
+		KFREE_TYPE_CARRAY(result.file_paths, const char*, result.file_count);
+	}
+
+	texture_browser_refresh(tb);
 	return false;
 }
 

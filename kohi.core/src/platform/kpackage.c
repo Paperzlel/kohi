@@ -27,9 +27,11 @@ typedef struct asset_entry {
 typedef struct kpackage_internal {
 	// darray of all asset entries.
 	asset_entry* entries;
+
+	asset_manifest_reference* references;
 } kpackage_internal;
 
-b8 kpackage_create_from_manifest(const asset_manifest* manifest, kpackage* out_package) {
+b8 kpackage_create_from_manifest(const char* manifest_file_path, const asset_manifest* manifest, kpackage* out_package) {
 	if (!manifest || !out_package) {
 		KERROR("kpackage_create_from_manifest requires valid pointers to manifest and out_package.");
 		return false;
@@ -45,8 +47,16 @@ b8 kpackage_create_from_manifest(const asset_manifest* manifest, kpackage* out_p
 	}
 
 	out_package->is_binary = false;
+	out_package->manifest_file_path = string_duplicate(manifest_file_path);
 
 	out_package->internal_data = kallocate(sizeof(kpackage_internal), MEMORY_TAG_PACKAGE);
+
+	out_package->internal_data->references = darray_create(asset_manifest_reference);
+	u32 ref_count = darray_length(manifest->references);
+	for (u32 i = 0; i < ref_count; ++i) {
+		darray_push(out_package->internal_data->references, manifest->references[i]);
+		out_package->internal_data->references[i].path = string_duplicate(manifest->references[i].path);
+	}
 
 	// Process manifest
 	u32 asset_count = darray_length(manifest->assets);
@@ -573,3 +583,85 @@ void kpackage_manifest_destroy(asset_manifest* manifest) {
 		kzero_memory(manifest, sizeof(asset_manifest));
 	}
 }
+
+#ifdef KOHI_DEBUG
+b8 kpackage_add_asset(kpackage* package, const asset_manifest_asset* asset) {
+	// Add to internal asset list for the package.
+	asset_entry new_entry = {
+		.name = asset->name,
+		.type = asset->type,
+		.path = string_duplicate(asset->path),
+		.source_path = string_duplicate(asset->path),
+	};
+
+	// Push the asset to it.
+	darray_push(package->internal_data->entries, new_entry);
+
+	return true;
+}
+
+b8 kpackage_save(kpackage* package) {
+	// Create an asset manifest struct from the package
+	u32 asset_count = darray_length(package->internal_data->entries);
+	asset_manifest manifest = {
+		.path = KNULL, // FIXME: get stored path
+		.references = package->internal_data->references,
+		.file_path = KNULL, // FIXME: get stored file path
+		.name = package->name,
+		.assets = KALLOC_TYPE_CARRAY(asset_manifest_asset, asset_count)};
+	for (u32 i = 0; i < asset_count; ++i) {
+		asset_entry* entry = &package->internal_data->entries[i];
+		asset_manifest_asset* a = &manifest.assets[i];
+
+		a->name = entry->name;
+		a->path = entry->path;
+		a->source_path = entry->source_path;
+		a->type = entry->type;
+	}
+
+	// Serialize it
+	kson_tree tree = {
+		.root = kson_object_create()};
+	kson_object_value_add_kname_as_string(&tree.root, "package_name", manifest.name);
+
+	// references
+	kson_array refs = kson_array_create();
+	u32 ref_count = darray_length(package->internal_data->references);
+	for (u32 i = 0; i < ref_count; ++i) {
+		kson_object ref_obj = kson_object_create();
+		kson_object_value_add_kname_as_string(&ref_obj, "name", manifest.references[i].name);
+		kson_object_value_add_string(&ref_obj, "path", manifest.references[i].path);
+		kson_array_value_add_object(&refs, ref_obj);
+	}
+	kson_object_value_add_array(&tree.root, "references", refs);
+
+	kson_array assets = kson_array_create();
+	for (u32 i = 0; i < asset_count; ++i) {
+		kson_object asset_obj = kson_object_create();
+		asset_manifest_asset* ma = &manifest.assets[i];
+		kson_object_value_add_kname_as_string(&asset_obj, "name", ma->name);
+		kson_object_value_add_string(&asset_obj, "path", ma->path);
+		kson_object_value_add_string(&asset_obj, "source_path", ma->source_path);
+
+		const char* type_str = kasset_type_to_string(ma->type);
+		kson_object_value_add_string(&asset_obj, "type", type_str);
+		kson_array_value_add_object(&assets, asset_obj);
+	}
+	kson_object_value_add_array(&tree.root, "assets", assets);
+
+	const char* serialized = kson_tree_to_string(&tree);
+
+	kson_tree_cleanup(&tree);
+
+	// HACK: remove this
+	KTRACE("Serialized: \n%s", serialized);
+
+	// Write it to disk.
+	/* if (!filesystem_write_entire_text_file(package->manifest_file_path, serialized)) {
+		KERROR("Failed to write asset manifest. See logs for details");
+		return false;
+	} */
+
+	return true;
+}
+#endif

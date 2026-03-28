@@ -40,7 +40,7 @@ b8 vfs_initialize(u64* memory_requirement, vfs_state* state, const vfs_config* c
 	}
 
 	kpackage primary_package = {0};
-	if (!kpackage_create_from_manifest(&manifest, &primary_package)) {
+	if (!kpackage_create_from_manifest(config->manifest_file_path, &manifest, &primary_package)) {
 		KERROR("Failed to create package from primary asset manifest. See logs for details.");
 		return false;
 	}
@@ -499,7 +499,7 @@ static b8 process_manifest_refs(vfs_state* state, const asset_manifest* manifest
 			}
 
 			kpackage package = {0};
-			if (!kpackage_create_from_manifest(&new_manifest, &package)) {
+			if (!kpackage_create_from_manifest(manifest_file_path, &new_manifest, &package)) {
 				KERROR("Failed to create package from asset manifest. See logs for details.");
 				return false;
 			}
