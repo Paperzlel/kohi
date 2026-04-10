@@ -24,7 +24,15 @@ The items in this list are not in any particular order. This list will be update
 - [x] Asset manifest
   - [x] Query asset system by type, name, package, etc. or some combination of that.
   - [x] Update the manifest by importing assets via an "Assets" editor.
-- [ ] Bugfix: #264 Address window closing issue on i3wm.
+- [ ] Nav meshes
+  - [ ] Nav mesh system - hold/manage nav meshes. Also responsible for the debug rendering of nav meshes.
+    - [ ] Creation of nav mesh based on node name within a model (i.e. a mesh named "navmesh-xx" would be used to create a navmesh, and not be rendered)
+  - [ ] Entity type
+  - [ ] Debug renderer to show nav meshes (instead of just rendering a mesh) - include ability to turn off depth
+  - [ ] Ability to retrieve nav meshes from scene.
+  - [ ] Ability to snap to nav mesh given a point in 3d space (i.e spawn points).
+- [ ] Ensure Testbed project runs successfully
+- [ ] Add notes to readme about binary asset generation.
 
 ## 0.13.0 Release
 
@@ -48,10 +56,22 @@ The items in this list are not in any particular order. This list will be update
   - [ ] Emissive
 - [ ] Asset manifest
   - [ ] Add property bag for "metadata". Property bag should have a few basic types like KSON has, but be accessible by kstring_ids.
-- [ ] HF Terrain water and materials
+
+## 0.14.0 Release
+
+- [ ] HF Terrain
+  - [ ] Doodads - a "thing" that exists alongside/within a terrain chunk. When the terrain chunk is culled, so too are these.
+    - [ ] Instanced object rendering.
+    - [ ] Static doodads such rocks/small stones, logs, small trees, etc.
+    - [ ] Animated doodads - items that can animate (i.e. react to wind) such as grass, plants, shrubs, etc.
+    - [ ] Property to control distance-based rendering (i.e rocks/fine details only show at closest chunks, grass is closest & med. dist, nothing far away)
+- [?] Move avatars to engine?
 
 ## Future Releases
 
+- [ ] HF Terrain water and materials
+  - [ ] SSR for reflection, research refraction
+- [ ] Bugfix: #264 Address window closing issue on i3wm.
 - [ ] Darray "push range" - ability to push multiple entries into array from another array
 - [ ] Editor gizmo needs work when it comes to local translation on top of current/parent rotation Editor gizmo needs work when it comes to local translation on top of current/parent rotations.
 - [ ] Rework freelist to take alignment into account.
@@ -127,13 +147,118 @@ The items in this list are not in any particular order. This list will be update
   - [ ] Additional texture channels:
     - [ ] Clear coat (PBR)
     - [ ] Clear coat roughness. (PBR)
+- [ ] platform layer (Windows, Linux, macOS)
+  - [ ] Actual Wayland support (not via XWayland)
+- [ ] mobile runtime support (Android, iOS)
+- [ ] SIMD
+- [ ] quadtrees/octrees
+- [ ] Flag to force single-threaded mode.
+- [ ] Multi-threaded logger
+- [ ] Input:
+  - [ ] touch
+  - [ ] gamepad
+  - [ ] keymaps/keybindings
+    - [ ] I18n / keyboard layouts
+- [ ] Strings
+  - [ ] kname string hashing
+    - [ ] compile-time hashing (Requires either custom preprocessor or using C++ compiler)
+  - [ ] high-level string structure library (not c-strings)
+  - [ ] I18n strings
+- [ ] prefabs
+- [ ] Physics System (front-end)
+- [ ] networking
+- [ ] profiling
+- [ ] skysphere (i.e dynamic day/night cycles)
+- [ ] terrain
+  - [ ] voxel-based (.kvt extension, Kohi Voxel Terrain)
+    - [ ] smooth voxels
+  - [ ] tessellation
+  - [ ] holes
+  - [ ] collision
+- [ ] volumes
+  - [ ] visibility/occlusion
+  - [ ] physics volumes
+  - [ ] weather
+- [ ] Asset packaging system, including package build process.
+      https://excalidraw.com/#json=5krkRPmGHvqoYkufVE_ED,ujzx6tqRDUn63DzjraQ_jw
+  - [ ] Assets specific to rutime or plugins should be provided at that level to the package build process.
+- [ ] For release builds, compile shaders to bytecode/SPIR-V and place into package binary.
+- [ ] Custom types capability for asset system.
+- [ ] geometry generation (2d and 3d, e.g. cube, cylinder, etc.)
+- [ ] advanced materials (WIP)
+- [ ] batch rendering (2d and 3d)
+- [ ] instanced rendering
+- [ ] Per-scene vertex/index buffers
+- [ ] Queue-up of data uploads during scene load:
+  - Notes/ steps involved:
+    - Setup a queue in the scene to hold pending mesh data.
+    - For each mesh:
+      - Make sure mesh is invalidated so it doesn't attempt to render.
+      - Assign a unique id for it and add it to the queue
+      - Load it from disk (multithreaded, currently done but needs some changes). Save off id, size, data, offsets, etc.
+      - Reserve space in buffer freelist but _don't_ upload to GPU. Save the offset in the queue as well.
+      - NOTE: that this could be used to figure out how large the buffer needs to be.
+    - Repeat this for all meshes.
+    - In one swoop, upload all vertex and index data to GPU at once, perhaps on a separate (transfer) queue to avoid frame drops.
+      - Probably the easiest way is a single vkCmdCopyBuffer call with multiple regions (1 per object), to a STAGING buffer.
+      - Once this completes, perform a copy from staging to the appropriate vertex/index buffer at the beginning of the next available frame.
+    - After the above completes (may need to setup a fence), validate meshes all at once, enabling rendering.
+- [ ] shadow maps
+  - [ ] Adjustable Directional Light properties
+    - [ ] shadow mode (soft/hard shadows/none)
+  - [ ] Percentage Closer Soft Shadows (PCSS)
+  - [ ] Point light shadows
+- [ ] Deferred rendering
+- [ ] Forward+ rendering
+- [ ] Compute Shader support (frontend)
+- [ ] Plugins
+  - [ ] ECS (Entity Component System)
+  - [ ] Vulkan Renderer Plugin (WIP)
+    - [x] Decouple renderpass from shader/pipeline and framebuffer/rendertargets
+    - [ ] multithreading
+      - [ ] texture data upload
+      - [ ] mesh data upload
+    - [ ] pipeline statistic querying
+    - [ ] compute support
+  - [ ] Direct3D Renderer Plugin
+    - [ ] multithreading
+  - [ ] Metal Renderer Plugin
+  - [ ] OpenGL Renderer Plugin
+  - [ ] Headless Renderer Plugin
+- [ ] Standard UI system
+  - [ ] Layering
+  - [ ] UI file format
+  - [ ] Load/Save UIs
+  - [ ] UI Editor (as a plugin to the editor)
+  - [ ] control focus (tab order?)
+  - [ ] docking
+  - [ ] drag and drop support
+  - [ ] UI Controls (one of the few engine-level areas that uses OOP):
+    - [ ] viewport control (world/scenes will be switched to use these as render targets)
+    - [ ] rich text control (system text w/ multicolour, bold/italic, etc. and bitmap text with multicolour only)
+    - [ ] radio buttons
+    - [ ] tabs
+    - [ ] windows/modals (complete with resize, min/max/restore, open/close, etc.)
+    - [ ] resizable multi-panels
+- [ ] Editor
+  - [ ] Editor application and 'runtime' executable
+    - [ ] UI editor
+    - [ ] editor logic library (dll/.so) hot reload
+  - [ ] Move model import logic to editor
+  - [ ] DDS/KTX texture format imports
+- [ ] Split off platform layers into separate libraries outside the engine.
+- [ ] Documentation
+- [ ] Continuous Integration
+- [ ] Nix build compatability (https://github.com/travisvroman/kohi/issues/175)
+- [ ] Scripting language - Kohi Language (KLang) - Thanks for the name idea Dr. Elliot. :)
 
-## Engine general:
+# Previous Release TODO lists:
+
+## pre-0.7.0 Releases
 
 - [x] platform layer (Windows, Linux, macOS)
   - [x] UTF-8/Wide character handling for Win32 windowing.
   - [x] UTF-8/Wide character handling for Linux windowing.
-  - [ ] Actual Wayland support (not via XWayland)
 - [x] event system
 - [x] clock
 - [x] testing framework
@@ -154,9 +279,7 @@ The items in this list are not in any particular order. This list will be update
   - [x] bitmap font
   - [x] system font
   - [x] scene
-- [ ] mobile runtime support (Android, iOS)
-- [ ] SIMD
-- [ ] Containers:
+- [x] Containers:
   - [x] stack
   - [x] hashtable
   - [x] freelist
@@ -167,26 +290,20 @@ The items in this list are not in any particular order. This list will be update
   - [x] pool
   - [x] u64_bst
   - [x] registry
-- [ ] quadtrees/octrees
 - [x] Threads
-- [ ] Flag to force single-threaded mode.
 - [x] Semaphores
 - [x] Job system
   - [x] Job dependencies
   - [x] Job semaphores/signaling
 - [x] ThreadPools
-- [ ] Multi-threaded logger
 - [x] Textures
   - [x] binary file format (.kbi)
 - [x] Renderable (writeable) textures
 - [x] Static geometry
 - [x] Materials
-- [ ] Input:
+- [x] Input:
   - [x] desktop
-  - [ ] touch
-  - [ ] gamepad
   - [x] keymaps/keybindings
-    - [ ] I18n / keyboard layouts
 - [x] Conosole
   - [x] Console consumer interface
   - [x] Logger as consumer
@@ -196,28 +313,20 @@ The items in this list are not in any particular order. This list will be update
 - [x] Application-level configuration
 - [x] Strings
   - [x] kname string hashing
-    - [ ] compile-time hashing (Requires either custom preprocessor or using C++ compiler)
-  - [ ] high-level string structure library (not c-strings)
-  - [ ] I18n strings
 - [x] resource hot reloading
-- [ ] prefabs
 - [x] Custom storage format (KSON - Kohi Storage Object Notation)
   - [x] Tokenizer/parser
   - [x] ToString/FromString API
 - [x] Scenes
   - [x] Base implementation
   - [x] Load from file
-  - [ ] Adjustable global scene properties
+  - [x] Adjustable global scene properties
   - [x] Save to file
 - [x] Renderer System (front-end/backend plugin architecture)
 - [x] Audio System (front-end)
-- [ ] Physics System (front-end)
-- [ ] networking
-- [ ] profiling
 - [x] timeline system
 - [x] skeletal animation system
 - [x] skybox
-- [ ] skysphere (i.e dynamic day/night cycles)
 - [x] water plane
 - [x] Raycasting
 - [x] Object picking
@@ -226,140 +335,50 @@ The items in this list are not in any particular order. This list will be update
 - [x] Gizmo (in-world object manipulation)
 - [x] Viewports
 - [x] terrain
-  - [ ] binary format (.kbt extension, Kohi Binary Terrain) - .kht imports to this.
   - [x] heightmap-based (.kht extension, Kohi Heightmap Terrain)
-  - [ ] voxel-based (.kvt extension, Kohi Voxel Terrain)
-    - [ ] smooth voxels
   - [x] pixel picking
   - [x] raycast picking
   - [x] chunking/culling
     - [x] BUG: culling is currently passing all chunks always.
   - [x] LOD
     - [x] Blending between LOD levels (geometry skirts vs gap-filling, etc.)
-  - [ ] tessellation
-  - [ ] holes
-  - [ ] collision
 - [x] volumes
-  - [ ] visibility/occlusion
   - [x] triggers
-  - [ ] physics volumes
-  - [ ] weather
 - [x] Multi-window applications
-- [ ] Asset packaging system, including package build process.
-      https://excalidraw.com/#json=5krkRPmGHvqoYkufVE_ED,ujzx6tqRDUn63DzjraQ_jw
-  - [ ] Assets specific to rutime or plugins should be provided at that level to the package build process.
   - [x] Would provide an interface to the engine, and the implementation could either load from disk or binary blob.
-- [ ] For release builds, compile shaders to bytecode/SPIR-V and place into package binary.
-- [ ] Custom types capability for asset system.
-
-## Renderer:
-
-- [ ] geometry generation (2d and 3d, e.g. cube, cylinder, etc.)
-- [ ] advanced materials (WIP)
 - [x] PBR Lighting model
-- [ ] batch rendering (2d and 3d)
-- [ ] instanced rendering
-- [ ] Per-scene vertex/index buffers
-- [ ] Queue-up of data uploads during scene load:
-  - Notes/ steps involved:
-    - Setup a queue in the scene to hold pending mesh data.
-    - For each mesh:
-      - Make sure mesh is invalidated so it doesn't attempt to render.
-      - Assign a unique id for it and add it to the queue
-      - Load it from disk (multithreaded, currently done but needs some changes). Save off id, size, data, offsets, etc.
-      - Reserve space in buffer freelist but _don't_ upload to GPU. Save the offset in the queue as well.
-      - NOTE: that this could be used to figure out how large the buffer needs to be.
-    - Repeat this for all meshes.
-    - In one swoop, upload all vertex and index data to GPU at once, perhaps on a separate (transfer) queue to avoid frame drops.
-      - Probably the easiest way is a single vkCmdCopyBuffer call with multiple regions (1 per object), to a STAGING buffer.
-      - Once this completes, perform a copy from staging to the appropriate vertex/index buffer at the beginning of the next available frame.
-    - After the above completes (may need to setup a fence), validate meshes all at once, enabling rendering.
 - [x] shadow maps
   - [x] PCF
   - [x] cascading shadow maps
   - [x] Adjustable Directional Light properties
     - [x] max shadow distance/fade (200/25)
     - [x] cascade split multiplier (0.91)
-    - [ ] shadow mode (soft/hard shadows/none)
-  - [ ] Percentage Closer Soft Shadows (PCSS)
-  - [ ] Point light shadows
 - [x] texture mipmapping
 - [x] Specular maps (NOTE: removed in favour of PBR)
 - [x] Normal maps
 - [x] Phong Lighting model (NOTE: removed in favour of PBR)
 - [x] Multiple/configurable renderpass support.
 - [x] Forward rendering
-- [ ] Deferred rendering
-- [ ] Forward+ rendering
-- [ ] Compute Shader support (frontend)
-
-## Plugins:
-
-- [ ] ECS (Entity Component System)
-- [x] Audio (OpenAL plugin)
-- [ ] Vulkan Renderer Plugin (WIP)
-  - [x] Decouple renderpass from shader/pipeline and framebuffer/rendertargets
-  - [ ] multithreading
-    - [ ] texture data upload
-    - [ ] mesh data upload
-  - [ ] pipeline statistic querying
-  - [ ] compute support
-- [ ] Direct3D Renderer Plugin
-  - [ ] multithreading
-- [ ] Metal Renderer Plugin
-- [ ] OpenGL Renderer Plugin
-- [ ] Headless Renderer Plugin
-
-## Standard UI: (separated section because number of controls)
-
+- [x] Plugins
+  - [x] Audio (OpenAL plugin)
 - [x] Standard UI system
-- [ ] Layering
-- [ ] UI file format
-- [ ] Load/Save UIs
-- [ ] UI Editor (as a plugin to the editor)
-- [ ] control focus (tab order?)
-- [ ] docking
-- [ ] drag and drop support
-- [ ] UI Controls (one of the few engine-level areas that uses OOP):
+- [x] UI Controls (one of the few engine-level areas that uses OOP):
   - [x] Base control - all controls come from this
   - [x] panel
-  - [ ] image box
-  - [ ] viewport control (world/scenes will be switched to use these as render targets)
-  - [ ] rich text control (system text w/ multicolour, bold/italic, etc. and bitmap text with multicolour only)
+  - [x] image box
   - [x] button
-  - [ ] checkbox
-  - [ ] radio buttons
-  - [ ] tabs
-  - [ ] windows/modals (complete with resize, min/max/restore, open/close, etc.)
-  - [ ] resizable multi-panels
-  - [ ] scrollbar
-  - [ ] scroll container
+  - [x] checkbox
+  - [x] scrollbar
+  - [x] scroll container
   - [x] textbox/textarea
   - [x] In-game debug console
-
-## Editor
-
-- [ ] Editor application and 'runtime' executable
-  - [ ] World editor
-  - [ ] UI editor
-  - [ ] editor logic library (dll/.so) hot reload
-- [ ] Move .obj, .mtl import logic to editor (output to binary .ksm format).
-- [ ] Move texture import logic to editor (output to binary .kbt format).
-- [ ] DDS/KTX texture format imports
-- [ ] FBX model imports
-
-## Other items:
-
+- [x] Editor
+  - [x] Editor application and 'runtime' executable
+    - [x] World editor
+    - [x] Move texture import logic to editor (output to binary .kbt format).
 - [x] Split off "core" items (defines, memory, strings, containers, etc.) into a "core" or "foundation" library so they may be used without having to pull in all of the engine.
-- [ ] Split off platform layers into separate libraries outside the engine.
 - [x] Auto-Generated API documentation
-- [ ] Documentation
-- [ ] Continuous Integration
 - [x] Add git tags to mark version releases (https://github.com/travisvroman/kohi/issues/174)
-- [ ] Nix build compatability (https://github.com/travisvroman/kohi/issues/175)
-- [ ] Scripting language - Kohi Language (KLang) - Thanks for the name idea Dr. Elliot. :)
-
-# Previous Release TODO lists:
 
 ## 0.7.0 Release
 

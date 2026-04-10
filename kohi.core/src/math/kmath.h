@@ -678,7 +678,7 @@ KINLINE vec4 vec3_to_vec4(vec3 vector, f32 w) {
  * @brief Creates and returns a 3-component vector with all components set to
  * 0.0f.
  */
-KINLINE vec3 vec3_zero(void) { return (vec3){0.0f, 0.0f, 0.0f}; }
+#define vec3_zero() (vec3){0.0f, 0.0f, 0.0f}
 
 /**
  * @brief Creates and returns a 3-component vector with all components set

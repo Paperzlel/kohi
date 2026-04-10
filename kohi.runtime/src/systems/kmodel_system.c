@@ -663,6 +663,10 @@ b8 kmodel_submesh_count_get(struct kmodel_system_state* state, u16 base_mesh_id,
 	return true;
 }
 
+b8 kmodel_is_loaded(struct kmodel_system_state* state, u16 base_mesh_id) {
+	return state->states[base_mesh_id] == KMODEL_STATE_LOADED;
+}
+
 const kgeometry* kmodel_submesh_geometry_get_at(struct kmodel_system_state* state, u16 base_mesh_id, u16 index) {
 	return &state->models[base_mesh_id].meshes[index].geo;
 }
