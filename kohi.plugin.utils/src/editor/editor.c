@@ -1977,8 +1977,6 @@ static void editor_unregister_commands(struct editor_state* state) {
 
 	// HACK: testing ofd... remove this
 	console_command_unregister("ofd");
-	// HACK: testing write manifest... remove this
-	KASSERT(console_command_unregister("wm"));
 }
 
 void editor_on_lib_load(struct editor_state* state) {

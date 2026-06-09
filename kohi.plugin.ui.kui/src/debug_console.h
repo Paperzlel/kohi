@@ -29,6 +29,8 @@ typedef struct debug_console_state {
 
 	kui_state* kui_state;
 
+	f32 accumulated_time;
+
 } debug_console_state;
 
 KAPI b8 debug_console_create(kui_state* kui_state, debug_console_state* out_console_state);

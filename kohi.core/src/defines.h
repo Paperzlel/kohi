@@ -317,6 +317,20 @@ KINLINE krange get_aligned_range(u64 offset, u64 size, u64 granularity) {
 #define FLAG_SET(flags, flag, enabled) (flags = (enabled ? (flags | flag) : (flags & ~flag)))
 
 /**
+ * @brief Indicates if the bit at the provided index is set in the given flags int.
+ */
+#define FLAG_GET_BY_INDEX(flags, index) FLAG_GET(flags, (1 << index))
+
+/**
+ * @brief Sets/unsets the bit at the provided index within the flags int.
+ *
+ * @param flags The flags int to write to.
+ * @param index The index of the bit to set/unset.
+ * @param enabled Indicates if the bit is set or not.
+ */
+#define FLAG_SET_BY_INDEX(flags, index, enabled) FLAG_SET(flags, (1 << index), enabled)
+
+/**
  * Unpacks 4 u16s from a single u64.
  * @param packed The packed u64.
  * @param a A pointer to a u16 to hold the first value.

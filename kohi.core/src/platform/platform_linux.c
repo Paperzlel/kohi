@@ -76,6 +76,7 @@ typedef struct linux_file_watch {
 	platform_filewatcher_file_deleted_callback watcher_deleted_callback;
 	void* watcher_deleted_context;
 	long last_write_time;
+	u32 update_poll_count;
 } linux_file_watch;
 
 typedef struct kwindow_platform_state {
@@ -1289,10 +1290,18 @@ static void platform_update_watches(void) {
 			if (info.st_mtime - f->last_write_time != 0) {
 				KTRACE("File update found.");
 				f->last_write_time = info.st_mtime;
-				if (f->watcher_written_callback) {
-					f->watcher_written_callback(f->id, f->file_path, f->is_binary, f->watcher_written_context);
-				} else {
-					KWARN("Watcher file was deleted but no handler callback was set. Make sure to call platform_register_watcher_written_callback()");
+				f->update_poll_count = 1;
+			} else {
+				if (f->update_poll_count) {
+					f->update_poll_count++;
+					if (f->update_poll_count > 10) {
+						f->update_poll_count = 0;
+						if (f->watcher_written_callback) {
+							f->watcher_written_callback(f->id, f->file_path, f->is_binary, f->watcher_written_context);
+						} else {
+							KWARN("Watcher file was deleted but no handler callback was set. Make sure to call platform_register_watcher_written_callback()");
+						}
+					}
 				}
 			}
 		}
