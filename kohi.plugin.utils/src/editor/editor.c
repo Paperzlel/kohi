@@ -1863,11 +1863,6 @@ static void editor_register_commands(struct editor_state* state) {
 	KASSERT(console_command_register("editor_set_selected_rotation", 4, 4, state, editor_command_execute));
 	KASSERT(console_command_register("editor_set_selected_scale", 3, 3, state, editor_command_execute));
 	KASSERT(console_command_register("editor_add_model", 2, 3, state, editor_command_execute));
-
-	// HACK: testing ofd... remove this
-	KASSERT(console_command_register("ofd", 0, 0, state, editor_command_execute));
-	// HACK: testing write manifest... remove this
-	KASSERT(console_command_register("wm", 0, 0, state, editor_command_execute));
 }
 
 static void editor_unregister_commands(struct editor_state* state) {

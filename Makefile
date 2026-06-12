@@ -94,6 +94,14 @@ copy-top-level-linux copy-top-level-macos: copy-utils
 	cp testbed.klib/bin/* bin
 	cp testbed.kapp/bin/* bin
 
+copy-top-level-lib: copy-top-level-lib-$(PLATFORM)
+.NOTPARALLEL: copy-top-level-lib
+
+copy-top-level-lib-win32:
+	copy testbed.klib\bin\* bin
+
+copy-top-level-lib-linux copy-top-level-lib-macos:
+	cp testbed.klib/bin/* bin
 
 # Debug builds
 all-debug: setup kohi-debug kohi-tests-debug kohi-plugins-debug kohi-tools-debug testbed-debug copy-top-level
@@ -102,6 +110,7 @@ kohi-debug: core-debug runtime-debug
 kohi-tests-debug: kohi-debug core-tests-debug runtime-tests-debug
 kohi-plugins-debug: kohi-debug plugin-audio-openal-debug plugin-renderer-vulkan-debug plugin-ui-kui-debug plugin-utils-debug
 testbed-debug: kohi-debug kohi-plugins-debug testbed-klib-debug testbed-kapp-debug
+testbed-lib-debug: testbed-klib-debug copy-top-level-lib
 
 utils-debug:
 	$(MAKE) -C utils all-debug

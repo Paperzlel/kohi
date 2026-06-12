@@ -24,12 +24,12 @@ The items in this list are not in any particular order. This list will be update
 - [x] Asset manifest
   - [x] Query asset system by type, name, package, etc. or some combination of that.
   - [x] Update the manifest by importing assets via an "Assets" editor.
-- [ ] Hot-reloading fixes
-  - [ ] Rework keymaps to use game lib defined "actions" (likely a big-ol' enum) handled by
+- [x] Hot-reloading fixes
+  - [x] Rework keymaps to use game lib defined "actions" (likely a big-ol' enum) handled by
         a single point of entry into the app instead of callbacks. This should reduce the
         number of callbacks needed to be refreshed on hot-reload.
-  - [ ] Convert Testbed over to new keymaps and confirm hot-reloading works.
-- [ ] Ensure Testbed project runs successfully (debug)
+  - [x] Convert Testbed over to new keymaps and confirm hot-reloading works.
+- [x] Ensure Testbed project runs successfully (debug)
 - [ ] Add notes to readme about binary asset generation.
   - [ ] Add a "import all from manifest(s)" option that just runs all imports.
 
