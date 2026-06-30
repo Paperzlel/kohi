@@ -208,6 +208,7 @@ clean-top-level-win32:
 
 clean-top-level-linux clean-top-level-macos:
 	rm -rf bin/*
+	rm -rf obj/*
 
 utils-clean:
 	$(MAKE) -C utils clean
@@ -239,10 +240,10 @@ plugin-renderer-utils-clean:
 tools-clean:
 	$(MAKE) -C kohi.tools clean
 
-plugin-testbed-klib-clean:
+testbed-klib-clean:
 	$(MAKE) -C testbed.klib clean
 
-plugin-testbed-kapp-clean:
+testbed-kapp-clean:
 	$(MAKE) -C testbed.kapp clean
 
 
