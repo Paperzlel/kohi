@@ -305,12 +305,12 @@ static void draw_geo_list(kforward_renderer* renderer, frame_data* p_frame_data,
 			// Draw it.
 			b8 includes_index_data = geo->index_count > 0;
 
-			KASSERT_DEBUG_MSG(
+			KASSERT_MSG(
 				renderer_renderbuffer_draw(renderer->renderer_state, renderer->standard_vertex_buffer, geo->vertex_offset, geo->vertex_count, 0, includes_index_data),
 				"renderer_renderbuffer_draw failed to draw vertex buffer");
 
 			if (includes_index_data) {
-				KASSERT_DEBUG_MSG(
+				KASSERT_MSG(
 					renderer_renderbuffer_draw(renderer->renderer_state, renderer->index_buffer, geo->index_offset, geo->index_count, 0, !includes_index_data),
 					"renderer_renderbuffer_draw failed to draw index buffer");
 			}
@@ -458,12 +458,12 @@ static b8 scene_pass(
 				// Draw it.
 				b8 includes_index_data = geo->index_count > 0;
 
-				KASSERT_DEBUG_MSG(
+				KASSERT_MSG(
 					renderer_renderbuffer_draw(renderer->renderer_state, renderer->standard_vertex_buffer, geo->vertex_offset, geo->vertex_count, 0, includes_index_data),
 					"renderer_renderbuffer_draw failed to draw vertex buffer");
 
 				if (includes_index_data) {
-					KASSERT_DEBUG_MSG(
+					KASSERT_MSG(
 						renderer_renderbuffer_draw(renderer->renderer_state, renderer->index_buffer, geo->index_offset, geo->index_count, 0, !includes_index_data),
 						"renderer_renderbuffer_draw failed to draw index buffer");
 				}
@@ -558,10 +558,10 @@ static b8 scene_pass(
 		renderer_cull_mode_set(RENDERER_CULL_MODE_BACK);
 
 		kshader shader = renderer->forward_pass.hf_terrain_shader;
-		KASSERT_DEBUG(kshader_system_use(shader, VERTEX_LAYOUT_INDEX_STATIC));
+		KASSERT(kshader_system_use(shader, VERTEX_LAYOUT_INDEX_STATIC));
 
 		// Ensure wireframe mode is (un)set.
-		KASSERT_DEBUG(kshader_system_set_wireframe(shader, view_mode == RENDERER_VIEW_MODE_WIREFRAME));
+		KASSERT(kshader_system_set_wireframe(shader, view_mode == RENDERER_VIEW_MODE_WIREFRAME));
 
 		kmaterial_settings_ubo* settings = &renderer->material_renderer->settings;
 

@@ -297,7 +297,7 @@ void editor_gizmo_mode_set(editor_gizmo* gizmo, editor_gizmo_mode mode) {
 	if (gizmo) {
 		gizmo->mode = mode;
 		gizmo->is_dirty = true;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 		switch (gizmo->mode) {
 		case EDITOR_GIZMO_MODE_NONE:
 			KTRACE("Gizmo mode set to 'none'");

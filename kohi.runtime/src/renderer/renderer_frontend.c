@@ -574,7 +574,7 @@ void renderer_begin_rendering(struct renderer_system_state* state, struct frame_
 	KASSERT_MSG(render_area.width != 0 && render_area.height != 0, "renderer_begin_rendering must have a width and height.");
 
 // Verify handles in debug builds, but not release.
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	// If colour targets are used, none should be invalid.
 	if (colour_target_count) {
 		for (u32 i = 0; i < colour_target_count; ++i) {
@@ -913,7 +913,7 @@ void renderer_shader_set_immediate_data(struct renderer_system_state* state, ksh
 	KASSERT_DEBUG(data);
 	KASSERT_DEBUG(size);
 	KASSERT_DEBUG(shader != KSHADER_INVALID);
-	KASSERT_DEBUG(state->backend->shader_set_immediate_data(state->backend, shader, data, size));
+	KASSERT(state->backend->shader_set_immediate_data(state->backend, shader, data, size));
 }
 
 void renderer_shader_set_binding_data(struct renderer_system_state* state, kshader shader, u8 binding_set, u32 instance_id, u8 binding_index, u64 offset, void* data, u64 size) {
@@ -921,21 +921,21 @@ void renderer_shader_set_binding_data(struct renderer_system_state* state, kshad
 	KASSERT_DEBUG(data);
 	KASSERT_DEBUG(size);
 	KASSERT_DEBUG(shader != KSHADER_INVALID);
-	KASSERT_DEBUG(state->backend->shader_set_binding_data(state->backend, shader, binding_set, instance_id, binding_index, offset, data, size));
+	KASSERT(state->backend->shader_set_binding_data(state->backend, shader, binding_set, instance_id, binding_index, offset, data, size));
 }
 
 void renderer_shader_set_binding_texture(struct renderer_system_state* state, kshader shader, u8 binding_set, u32 instance_id, u8 binding_index, u8 array_index, ktexture texture) {
 	KASSERT_DEBUG(state);
 	KASSERT_DEBUG(texture != INVALID_KTEXTURE);
 	KASSERT_DEBUG(shader != KSHADER_INVALID);
-	KASSERT_DEBUG(state->backend->shader_set_binding_texture(state->backend, shader, binding_set, instance_id, binding_index, array_index, texture));
+	KASSERT(state->backend->shader_set_binding_texture(state->backend, shader, binding_set, instance_id, binding_index, array_index, texture));
 }
 
 void renderer_shader_set_binding_sampler(struct renderer_system_state* state, kshader shader, u8 binding_set, u32 instance_id, u8 binding_index, u8 array_index, ksampler_backend sampler) {
 	KASSERT_DEBUG(state);
 	KASSERT_DEBUG(sampler != KSAMPLER_BACKEND_INVALID);
 	KASSERT_DEBUG(shader != KSHADER_INVALID);
-	KASSERT_DEBUG(state->backend->shader_set_binding_sampler(state->backend, shader, binding_set, instance_id, binding_index, array_index, sampler));
+	KASSERT(state->backend->shader_set_binding_sampler(state->backend, shader, binding_set, instance_id, binding_index, array_index, sampler));
 }
 
 b8 renderer_shader_apply_binding_set(struct renderer_system_state* state, kshader shader, u8 binding_set, u32 instance_id) {

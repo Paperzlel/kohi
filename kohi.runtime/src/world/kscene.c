@@ -218,10 +218,11 @@ typedef struct kgeometry_data {
 	u16 material_instance_id;
 } kgeometry_data;
 
+#if KOHI_DEBUG
 typedef enum kscene_debug_data_type {
-	kSCENE_DEBUG_DATA_TYPE_NONE,
-	kSCENE_DEBUG_DATA_TYPE_RECTANGLE,
-	kSCENE_DEBUG_DATA_TYPE_SPHERE,
+	KSCENE_DEBUG_DATA_TYPE_NONE,
+	KSCENE_DEBUG_DATA_TYPE_RECTANGLE,
+	KSCENE_DEBUG_DATA_TYPE_SPHERE,
 } kscene_debug_data_type;
 
 typedef struct kscene_debug_data {
@@ -232,6 +233,7 @@ typedef struct kscene_debug_data {
 	colour4 colour;
 	b8 ignore_scale;
 } kscene_debug_data;
+#endif
 
 #if KOHI_DEBUG
 typedef struct scene_bvh_debug_data {
@@ -387,6 +389,11 @@ static void audio_emitter_entity_destroy(kscene* scene, audio_emitter_entity* ty
 
 #if KOHI_DEBUG
 static void create_debug_data(kscene* scene, vec3 size, vec3 center, kentity entity, kscene_debug_data_type type, colour4 colour, b8 ignore_scale, u32* out_debug_data_index);
+static kscene_debug_data_type debug_type_from_shape_type(kshape_type type);
+#else
+// Intentional no-op in release
+#	define create_debug_data(scene, size, center, entity, type, colour, ignore_scale, out_debug_data_index)
+#	define debug_type_from_shape_type(type)
 #endif
 
 struct kscene* kscene_create(kname scene_asset_name, const char* config, PFN_scene_loaded loaded_callback, void* load_context, b8 is_editor) {
@@ -1956,50 +1963,42 @@ void kscene_remove_entity(struct kscene* scene, kentity* entity) {
 		switch (type) {
 
 		case KENTITY_TYPE_NONE: {
-			u16 len = darray_length(scene->bases);
-			KASSERT_DEBUG(typed_index < len);
+			KASSERT_DEBUG(typed_index < darray_length(scene->bases));
 			base_entity_destroy(scene, &scene->bases[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_MODEL: {
-			u16 len = darray_length(scene->models);
-			KASSERT_DEBUG(typed_index < len);
+			KASSERT_DEBUG(typed_index < darray_length(scene->models));
 			model_entity_destroy(scene, &scene->models[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_POINT_LIGHT: {
-			u16 len = darray_length(scene->point_lights);
-			KASSERT_DEBUG(typed_index < len);
+			KASSERT_DEBUG(typed_index < darray_length(scene->point_lights));
 			point_light_entity_destroy(scene, &scene->point_lights[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_SPAWN_POINT: {
-			u16 len = darray_length(scene->spawn_points);
-			KASSERT_DEBUG(typed_index < len);
+			KASSERT_DEBUG(typed_index < darray_length(scene->spawn_points));
 			spawn_point_entity_destroy(scene, &scene->spawn_points[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_VOLUME: {
-			u16 len = darray_length(scene->volumes);
-			KASSERT_DEBUG(typed_index < len);
+			KASSERT_DEBUG(typed_index < darray_length(scene->volumes));
 			volume_entity_destroy(scene, &scene->volumes[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_HIT_SHAPE: {
-			u16 len = darray_length(scene->hit_shapes);
-			KASSERT_DEBUG(typed_index < len);
+			KASSERT_DEBUG(typed_index < darray_length(scene->hit_shapes));
 			hit_shape_entity_destroy(scene, &scene->hit_shapes[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_WATER_PLANE: {
-			u16 len = darray_length(scene->water_planes);
-			KASSERT_DEBUG(typed_index < len);
+			KASSERT_DEBUG(typed_index < darray_length(scene->water_planes));
 			water_plane_entity_destroy(scene, &scene->water_planes[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_AUDIO_EMITTER: {
-			u16 len = darray_length(scene->audio_emitters);
-			KASSERT_DEBUG(typed_index < len);
+			KASSERT_DEBUG(typed_index < darray_length(scene->audio_emitters));
 			audio_emitter_entity_destroy(scene, &scene->audio_emitters[typed_index], *entity);
 		} break;
 
@@ -2130,10 +2129,12 @@ static void base_entity_destroy(kscene* scene, base_entity* base, kentity entity
 	ktransform_destroy(&base->transform);
 
 	// Cleaup debug data.
+#if KOHI_DEBUG
 	if (base->debug_data_index != INVALID_ID_U32) {
 		renderer_geometry_destroy(&scene->debug_datas[base->debug_data_index].geometry);
 		base->debug_data_index = INVALID_ID_U32;
 	}
+#endif
 
 	// Flag as free
 	FLAG_SET(base->flags, KENTITY_FLAG_FREE_BIT, true);
@@ -2252,9 +2253,15 @@ kentity kscene_add_point_light(struct kscene* scene, kname name, ktransform tran
 	new_ent->base.extents.min = (vec3){-r, -r, -r};
 	new_ent->base.extents.max = (vec3){r, r, r};
 
-	vec3 size = extents_3d_half(new_ent->base.extents);
-
-	create_debug_data(scene, size, vec3_zero(), entity, kSCENE_DEBUG_DATA_TYPE_SPHERE, (vec4){new_ent->colour.r, new_ent->colour.g, new_ent->colour.b, 1}, true, &new_ent->base.debug_data_index);
+	create_debug_data(
+		scene,
+		extents_3d_half(new_ent->base.extents),
+		vec3_zero(),
+		entity,
+		KSCENE_DEBUG_DATA_TYPE_SPHERE,
+		((colour4){new_ent->colour.r, new_ent->colour.g, new_ent->colour.b, 1}),
+		true,
+		&new_ent->base.debug_data_index);
 
 	return entity;
 }
@@ -2294,7 +2301,7 @@ kentity kscene_add_spawn_point(struct kscene* scene, kname name, ktransform tran
 
 	new_ent->radius = radius;
 
-	create_debug_data(scene, vec3_from_scalar(radius), vec3_zero(), entity, kSCENE_DEBUG_DATA_TYPE_SPHERE, (vec4){0, 0, 1, 1}, true, &new_ent->base.debug_data_index);
+	create_debug_data(scene, vec3_from_scalar(radius), vec3_zero(), entity, KSCENE_DEBUG_DATA_TYPE_SPHERE, ((colour4){0, 0, 1, 1}), true, &new_ent->base.debug_data_index);
 
 	return entity;
 }
@@ -2362,18 +2369,7 @@ kentity kscene_add_volume(
 		new_ent->on_tick_command = string_duplicate(on_tick_command);
 	}
 
-	kscene_debug_data_type debug_type;
-	switch (new_ent->shape.shape_type) {
-	case KSHAPE_TYPE_SPHERE:
-		debug_type = kSCENE_DEBUG_DATA_TYPE_SPHERE;
-		break;
-	case KSHAPE_TYPE_RECTANGLE:
-		debug_type = kSCENE_DEBUG_DATA_TYPE_RECTANGLE;
-		break;
-	}
-
-	vec3 size = extents_3d_half(new_ent->base.extents);
-	create_debug_data(scene, size, vec3_zero(), entity, debug_type, ENTITY_VOLUME_DEBUG_COLOUR, true, &new_ent->base.debug_data_index);
+	create_debug_data(scene, extents_3d_half(new_ent->base.extents), vec3_zero(), entity, debug_type_from_shape_type(new_ent->shape.shape_type), ENTITY_VOLUME_DEBUG_COLOUR, true, &new_ent->base.debug_data_index);
 
 	return entity;
 }
@@ -2638,8 +2634,7 @@ kentity kscene_add_audio_emitter(
 	vec3 emitter_world_pos = mat4_position(world);
 	kaudio_emitter_world_position_set(engine_systems_get()->audio_system, new_ent->emitter, emitter_world_pos);
 
-	vec3 size = extents_3d_half(new_ent->base.extents);
-	create_debug_data(scene, size, vec3_zero(), entity, kSCENE_DEBUG_DATA_TYPE_SPHERE, ENTITY_AUDIO_EMITTER_DEBUG_COLOUR, true, &new_ent->base.debug_data_index);
+	create_debug_data(scene, extents_3d_half(new_ent->base.extents), vec3_zero(), entity, KSCENE_DEBUG_DATA_TYPE_SPHERE, ENTITY_AUDIO_EMITTER_DEBUG_COLOUR, true, &new_ent->base.debug_data_index);
 
 	return entity;
 }
@@ -2919,7 +2914,7 @@ kdebug_geometry_render_data* kscene_get_debug_render_data(
 	i16 rd_idx = 0;
 	for (u16 i = 0; i < debug_data_count; ++i) {
 		kscene_debug_data* data = &scene->debug_datas[i];
-		if (data->type != kSCENE_DEBUG_DATA_TYPE_NONE) {
+		if (data->type != KSCENE_DEBUG_DATA_TYPE_NONE) {
 			kdebug_geometry_render_data* rd = &out_render_data[rd_idx];
 			rd->geo.index_count = data->geometry.index_count;
 			rd->geo.index_offset = data->geometry.index_buffer_offset;
@@ -3109,7 +3104,9 @@ static kentity init_base_entity_with_extents(kscene* scene, base_entity* base, u
 
 	base->bvh_id = bvh_insert(&scene->bvh_tree, b, entity);
 
+#if KOHI_DEBUG
 	base->debug_data_index = INVALID_ID_U32;
+#endif
 
 	return entity;
 }
@@ -3289,6 +3286,7 @@ static void map_model_entity_geometries(kscene* scene, kentity entity) {
 		// Map the submesh geometries to the material.
 		map_model_submesh_geometries(scene, entity, g, winding_inverted, mat_inst);
 	}
+#if KOHI_DEBUG
 	vec3 center = extents_3d_center(base->extents);
 
 	// Debug data can be created at this point.
@@ -3298,10 +3296,14 @@ static void map_model_entity_geometries(kscene* scene, kentity entity) {
 		size,
 		center,
 		entity,
-		kSCENE_DEBUG_DATA_TYPE_RECTANGLE,
+		KSCENE_DEBUG_DATA_TYPE_RECTANGLE,
 		is_animated ? ENTITY_MODEL_ANIMATED_DEBUG_COLOUR : ENTITY_MODEL_STATIC_DEBUG_COLOUR,
 		false,
 		&base->debug_data_index);
+#else
+	if (is_animated) {
+	}
+#endif
 }
 
 static void unmap_model_entity_geometries(kscene* scene, kentity entity) {
@@ -4086,7 +4088,7 @@ static void create_debug_data(kscene* scene, vec3 size, vec3 center, kentity ent
 	for (u32 i = 0; i < len; ++i) {
 		// Determine if "free"
 		data = &scene->debug_datas[i];
-		if (data->type == kSCENE_DEBUG_DATA_TYPE_NONE) {
+		if (data->type == KSCENE_DEBUG_DATA_TYPE_NONE) {
 			// found a free one, use it.
 			index = i;
 			break;
@@ -4104,13 +4106,13 @@ static void create_debug_data(kscene* scene, vec3 size, vec3 center, kentity ent
 	data->type = type;
 	data->ignore_scale = ignore_scale;
 	switch (data->type) {
-	case kSCENE_DEBUG_DATA_TYPE_NONE:
+	case KSCENE_DEBUG_DATA_TYPE_NONE:
 		KWARN("Trying to create debug data of type none. Don't do that, ya dingus! Creating a box instead.");
 		// Note: intentional fall-through.
-	case kSCENE_DEBUG_DATA_TYPE_RECTANGLE:
+	case KSCENE_DEBUG_DATA_TYPE_RECTANGLE:
 		data->geometry = geometry_generate_line_box3d_typed(size, 0, KGEOMETRY_TYPE_3D_STATIC_POSITION_ONLY, center);
 		break;
-	case kSCENE_DEBUG_DATA_TYPE_SPHERE: {
+	case KSCENE_DEBUG_DATA_TYPE_SPHERE: {
 		f32 radius = KMAX(size.x, KMAX(size.y, size.z));
 		// NOTE: hardcode debug sphere resolution.
 		data->geometry = geometry_generate_line_sphere3d_typed(radius, 16, 0, KGEOMETRY_TYPE_3D_STATIC_POSITION_ONLY);
@@ -4123,6 +4125,15 @@ static void create_debug_data(kscene* scene, vec3 size, vec3 center, kentity ent
 	}
 	data->geometry.generation++;
 	*out_debug_data_index = index;
+}
+
+static kscene_debug_data_type debug_type_from_shape_type(kshape_type type) {
+	switch (type) {
+	case KSHAPE_TYPE_SPHERE:
+		return KSCENE_DEBUG_DATA_TYPE_SPHERE;
+	case KSHAPE_TYPE_RECTANGLE:
+		return KSCENE_DEBUG_DATA_TYPE_RECTANGLE;
+	}
 }
 
 #endif

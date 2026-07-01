@@ -52,6 +52,8 @@ void vulkan_end_label(vulkan_context* context, VkCommandBuffer buffer);
 // Does nothing in non-debug builds.
 #	define VK_SET_DEBUG_OBJECT_NAME(context, object_type, object_handle, object_name)
 // Does nothing in non-debug builds.
+#	define VK_SET_DEBUG_OBJECT_NAME_INDEXED(context, object_type, object_handle, object_name, index)
+// Does nothing in non-debug builds.
 #	define VK_SET_DEBUG_OBJECT_TAG(context, object_type, object_handle, tag_size, tag_data)
 // Does nothing in non-debug builds.
 #	define VK_BEGIN_DEBUG_LABEL(context, command_buffer, label_name, colour)

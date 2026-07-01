@@ -14,14 +14,14 @@
 #include <utils_plugin_defines.h>
 
 #if KOHI_DEBUG
-#	define testbed_EDITOR 1
+#	define TESTBED_EDITOR 1
 #endif
 
 #define PACKAGE_NAME_TESTBED "Testbed"
 
 typedef enum testbed_app_mode {
 	TESTBED_APP_MODE_WORLD,
-#ifdef testbed_EDITOR
+#if KOHI_EDITOR
 	TESTBED_APP_MODE_EDITOR,
 #endif
 	TESTBED_APP_MODE_MAIN_MENU,
@@ -33,8 +33,10 @@ KINLINE const char* testbed_application_mode_to_string(testbed_application_mode 
 	default:
 	case TESTBED_APP_MODE_WORLD:
 		return "WORLD";
+#if TESTBED_EDITOR
 	case TESTBED_APP_MODE_EDITOR:
 		return "EDITOR";
+#endif
 	case TESTBED_APP_MODE_MAIN_MENU:
 		return "MAIN_MENU";
 	case TESTBED_APP_MODE_PAUSE_MENU:
@@ -136,7 +138,7 @@ typedef struct game_state {
 
 } game_state;
 
-#ifdef testbed_EDITOR
+#ifdef TESTBED_EDITOR
 struct editor_state;
 #endif
 
@@ -183,10 +185,11 @@ typedef struct application_state {
 	// Previous frame allocator total memory (in case it changes)
 	u64 prev_framealloc_total;
 
-	// NOTE: Debug stuff to eventually be excluded on release builds.
-#ifdef KOHI_DEBUG
+	// NOTE: Debug displays to eventually be excluded on release builds.
+	// Maybe we have a release-debug build that allows this?
 	kui_control debug_text;
 	kui_control debug_text_shadow;
+#if KOHI_DEBUG
 	debug_console_state debug_console;
 	keymap console_keymap;
 #endif

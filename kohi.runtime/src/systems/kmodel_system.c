@@ -421,7 +421,7 @@ kmodel_instance kmodel_instance_acquire_from_package(struct kmodel_system_state*
 			kname_string_get(asset_name),
 			listener,
 			kasset_model_loaded);
-		KASSERT_DEBUG(asset);
+		KASSERT(asset);
 	} else {
 		KTRACE("Base mesh for '%k' already exists (%u). Getting new instance.", asset_name, base_id);
 		// Base mesh already exists, just need to get material instances.

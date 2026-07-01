@@ -38,7 +38,7 @@ void vulkan_command_buffer_allocate(
 	if (name) {
 		VK_SET_DEBUG_OBJECT_NAME(context, VK_OBJECT_TYPE_COMMAND_BUFFER, out_command_buffer->handle, name);
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 		// Also keep a copy of the name for debugging purposes.
 		out_command_buffer->name = string_duplicate(name);
 #endif
@@ -66,7 +66,7 @@ void vulkan_command_buffer_free(vulkan_context* context, VkCommandPool pool, vul
 
 	krhi_vulkan* rhi = &context->rhi;
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	// Also keep a copy of the name for debugging purposes.
 	string_free(command_buffer->name);
 #endif

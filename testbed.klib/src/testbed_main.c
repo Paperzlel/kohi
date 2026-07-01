@@ -62,7 +62,9 @@
 #include <editor/editor_gizmo.h>
 
 // Game files
-#include "editor/editor.h"
+#if TESTBED_EDITOR
+#	include "editor/editor.h"
+#endif
 #include "kui_types.h"
 #include "testbed.klib_version.h"
 #include "testbed_types.h"
@@ -154,7 +156,6 @@ b8 application_initialize(struct application* app) {
 	app->state->kui_plugin = plugin_system_get(engine_systems_get()->plugin_system, "kohi.plugin.ui.kui");
 	app->state->kui_plugin_state = app->state->kui_plugin->plugin_state;
 	app->state->kui_state = app->state->kui_plugin_state->state;
-	kui_state* kui_state = app->state->kui_state;
 
 	// Setup forward renderer.
 	// Get colourbuffer and depthbuffer from the currently active window.
@@ -172,7 +173,7 @@ b8 application_initialize(struct application* app) {
 		return false;
 	}
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	if (!debug_console_create(app->state->kui_state, &app->state->debug_console)) {
 		KERROR("Failed to create debug console.");
 		return false;
@@ -194,7 +195,7 @@ b8 application_initialize(struct application* app) {
 	// Setup the clear colour.
 	renderer_clear_colour_set(engine_systems_get()->renderer_system, (vec4){0.0f, 0.2f, 0.2f, 1.0f});
 
-#ifdef KOHI_EDITOR
+#if TESTBED_EDITOR
 	u64 editor_mem_req = 0;
 	editor_initialize(&editor_mem_req, KNULL, kname_create("Testbed"));
 	// TODO: Editor tag? or custom tag?
@@ -210,9 +211,8 @@ b8 application_initialize(struct application* app) {
 	keymap_binding_add(&app->state->editor->editor_keymap, KEY_F11, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_EDITOR_CLOSE);
 #endif
 
-#ifdef KOHI_DEBUG
-
 	// Setup some UI elements
+	kui_state* kui_state = app->state->kui_state;
 
 	// Create test ui text objects
 	// black background text
@@ -232,6 +232,7 @@ b8 application_initialize(struct application* app) {
 	KASSERT(kui_system_control_add_child(kui_state, INVALID_KUI_CONTROL, app->state->context_sensitive_text));
 	kui_control_position_set(kui_state, app->state->context_sensitive_text, vec3_create(20, app->state->height - 50, 0));
 
+#if KOHI_DEBUG
 	// Ensure the debug console is on top.
 	if (!debug_console_load(&app->state->debug_console)) {
 		KERROR("Failed to load debug console.");
@@ -280,7 +281,7 @@ b8 application_update(struct application* app, struct frame_data* p_frame_data) 
 	vec3 pos = vec3_zero();
 	vec3 rot = vec3_zero();
 
-#ifdef KOHI_EDITOR
+#if TESTBED_EDITOR
 	if (app->state->mode == TESTBED_APP_MODE_EDITOR) {
 		editor_update(app->state->editor, p_frame_data);
 
@@ -414,7 +415,7 @@ FAllocP: %.2f%s/%.2f%s (%.3f %%)",
 		string_free(time_str);
 	}
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	debug_console_update(&app->state->debug_console);
 #endif
 
@@ -448,9 +449,11 @@ b8 application_prepare_frame(struct application* app, struct frame_data* p_frame
 	kzero_memory(p_frame_data->kui_render_data, sizeof(kui_render_data));
 	kui_render_data* ui_render_data = p_frame_data->kui_render_data;
 	// Editor
+#if TESTBED_EDITOR
 	app->state->editor->editor_gizmo_render_data = frame_allocator->allocate(sizeof(keditor_gizmo_pass_render_data));
 	kzero_memory(app->state->editor->editor_gizmo_render_data, sizeof(keditor_gizmo_pass_render_data));
 	keditor_gizmo_pass_render_data* editor_gizmo_render_data = app->state->editor->editor_gizmo_render_data;
+#endif
 
 	struct kscene* current_scene = get_current_render_scene(app);
 	kcamera current_camera = get_current_render_camera(app);
@@ -459,7 +462,7 @@ b8 application_prepare_frame(struct application* app, struct frame_data* p_frame
 	kscene_frame_prepare(current_scene, p_frame_data, app->state->render_mode, current_camera);
 
 // Editor frame prepare
-#if KOHI_EDITOR
+#if TESTBED_EDITOR
 	b8 draw_gizmo = app->state->mode == TESTBED_APP_MODE_EDITOR;
 	editor_frame_prepare(app->state->editor, p_frame_data, app->state->editor->editor_camera, draw_gizmo, editor_gizmo_render_data);
 #endif
@@ -502,7 +505,7 @@ b8 application_render_frame(struct application* app, struct frame_data* p_frame_
 		KERROR("Failed to render forward frame! See logs for details.");
 	}
 
-#if KOHI_EDITOR
+#if TESTBED_EDITOR
 	b8 draw_gizmo = app->state->mode == TESTBED_APP_MODE_EDITOR;
 	kwindow* current_window = engine_active_window_get();
 	ktexture global_colourbuffer = current_window->renderer_state->colourbuffer;
@@ -547,7 +550,7 @@ void application_on_window_resize(struct application* app, const struct kwindow*
 		kscene_on_window_resize(app->state->current_scene, window);
 	}
 
-#if KOHI_EDITOR
+#if TESTBED_EDITOR
 	// This will also pass the resize on to any open "editor scene"
 	editor_on_window_resize(app->state->editor, window);
 #endif
@@ -609,7 +612,7 @@ static b8 application_on_debug_action(struct application* app_inst, u32 action_c
 }
 #endif
 
-#if KOHI_EDITOR
+#if TESTBED_EDITOR
 // only called when in-editor
 static b8 application_on_editor_action(struct application* app_inst, u32 action_code) {
 	application_state* state = app_inst->state;
@@ -697,7 +700,7 @@ void application_on_action(struct application* app_inst, u32 action_code) {
 	}
 #endif
 
-#if KOHI_EDITOR
+#if TESTBED_EDITOR
 	if (application_on_editor_action(app_inst, action_code)) {
 		// Handled by editor.
 		return;
@@ -713,6 +716,7 @@ void application_on_action(struct application* app_inst, u32 action_code) {
 
 	// TODO: break this up based on current game state (i.e. menu vs play vs title screen, etc.)
 	switch (action_code) {
+#if TESTBED_EDITOR
 	case GAME_ACTION_EDITOR_CLOSE: {
 		if (state->mode == TESTBED_APP_MODE_EDITOR) {
 			if (editor_close(state->editor)) {
@@ -760,6 +764,7 @@ void application_on_action(struct application* app_inst, u32 action_code) {
 			}
 		}
 	} break;
+#endif
 	case GAME_ACTION_QUIT:
 		KDEBUG("GAME_ACTION_QUIT");
 		event_fire(EVENT_CODE_APPLICATION_QUIT, 0, (event_context){});
@@ -787,7 +792,7 @@ void application_on_action(struct application* app_inst, u32 action_code) {
 void application_shutdown(struct application* app) {
 	app->state->running = false;
 
-#ifdef KOHI_EDITOR
+#if TESTBED_EDITOR
 	editor_shutdown(app->state->editor);
 #endif
 
@@ -796,7 +801,7 @@ void application_shutdown(struct application* app) {
 	// Also destroy the game renderer.
 	kforward_renderer_destroy(&app->state->game_renderer);
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	debug_console_unload(&app->state->debug_console);
 #endif
 }
@@ -805,10 +810,10 @@ void application_lib_on_unload(struct application* app) {
 	// Unregister game events.
 	game_unregister_events(app);
 	game_unregister_commands(app);
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	debug_console_on_lib_unload(&app->state->debug_console);
 #endif
-#ifdef KOHI_EDITOR
+#if TESTBED_EDITOR
 	editor_on_lib_unload(app->state->editor);
 #endif
 	// TODO: re-enable
@@ -816,7 +821,7 @@ void application_lib_on_unload(struct application* app) {
 }
 
 void application_lib_on_load(struct application* app) {
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	debug_console_on_lib_load(&app->state->debug_console, app->stage >= APPLICATION_STAGE_BOOT_COMPLETE);
 #endif
 
@@ -831,7 +836,7 @@ void application_lib_on_load(struct application* app) {
 		// (Re-)Register game console commands.
 		game_register_commands(app);
 
-#ifdef KOHI_EDITOR
+#if TESTBED_EDITOR
 		editor_on_lib_load(app->state->editor);
 #endif
 	}
@@ -840,9 +845,12 @@ void application_lib_on_load(struct application* app) {
 static struct kscene* get_current_render_scene(application* app) {
 	if (app->state->mode == TESTBED_APP_MODE_WORLD) {
 		return app->state->current_scene;
-	} else if (app->state->mode == TESTBED_APP_MODE_EDITOR) {
+	}
+#if TESTBED_EDITOR
+	else if (app->state->mode == TESTBED_APP_MODE_EDITOR) {
 		return app->state->editor->edit_scene;
 	}
+#endif
 
 	return KNULL;
 }
@@ -850,9 +858,12 @@ static struct kscene* get_current_render_scene(application* app) {
 static kcamera get_current_render_camera(application* app) {
 	if (app->state->mode == TESTBED_APP_MODE_WORLD) {
 		return app->state->world_camera;
-	} else if (app->state->mode == TESTBED_APP_MODE_EDITOR) {
+	}
+#if TESTBED_EDITOR
+	else if (app->state->mode == TESTBED_APP_MODE_EDITOR) {
 		return app->state->editor->editor_camera;
 	}
+#endif
 
 	return DEFAULT_KCAMERA;
 }
@@ -863,7 +874,9 @@ static void setup_keymaps(application* app) {
 	app->state->global_keymap = keymap_create();
 	keymap_binding_add(&app->state->global_keymap, KEY_ESCAPE, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_QUIT);
 	keymap_binding_add(&app->state->global_keymap, KEY_V, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_VSYNC_TOGGLE);
+#if KOHI_DEBUG
 	keymap_binding_add(&app->state->global_keymap, KEY_GRAVE, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_CONSOLE_VIS);
+#endif
 
 	keymap_binding_add(&app->state->global_keymap, KEY_L, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_LOAD_TEST_SCENE);
 	keymap_binding_add(&app->state->global_keymap, KEY_U, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_UNLOAD_SCENE);
@@ -871,7 +884,7 @@ static void setup_keymaps(application* app) {
 	// World mode keymap
 	{
 		app->state->world_keymap = keymap_create();
-#if KOHI_EDITOR
+#if TESTBED_EDITOR
 		keymap_binding_add(&app->state->world_keymap, KEY_F11, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_EDITOR_OPEN);
 #endif
 
@@ -902,6 +915,7 @@ static void setup_keymaps(application* app) {
 
 	// A console-specific keymap. Is not pushed by default.
 	{
+#if KOHI_DEBUG
 		app->state->console_keymap = keymap_create();
 		app->state->console_keymap.overrides_all = true;
 		keymap_binding_add(&app->state->console_keymap, KEY_GRAVE, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_CONSOLE_VIS);
@@ -914,6 +928,7 @@ static void setup_keymaps(application* app) {
 
 		keymap_binding_add(&app->state->console_keymap, KEY_UP, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_CONSOLE_HISTORY_BACK);
 		keymap_binding_add(&app->state->console_keymap, KEY_DOWN, KEYMAP_BIND_TYPE_PRESS, KEYMAP_MODIFIER_NONE_BIT, GAME_ACTION_CONSOLE_HISTORY_FORWARD);
+#endif
 	}
 
 // If this was done with the console open, push its keymap.

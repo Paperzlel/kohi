@@ -49,7 +49,7 @@ void kson_parser_destroy(kson_parser* parser) {
 			parser->file_content = 0;
 		}
 		if (parser->tokens) {
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 			u32 len = darray_length(parser->tokens);
 			for (u32 i = 0; i < len; ++i) {
 				if (parser->tokens[i].content) {
@@ -79,14 +79,14 @@ static void reset_current_token_and_mode(kson_token* current_token, kson_tokeniz
 	current_token->type = KSON_TOKEN_TYPE_UNKNOWN;
 	current_token->start = 0;
 	current_token->end = 0;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	current_token->content = 0;
 #endif
 
 	*mode = KSON_TOKENIZE_MODE_UNKNOWN;
 }
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 static void _populate_token_content(kson_token* t, const char* source) {
 	KASSERT_MSG(t->start <= t->end, "Token start comes after token end, ya dingus!");
 	char buffer[512] = {0};
@@ -683,7 +683,7 @@ b8 kson_parser_parse(kson_parser* parser, kson_tree* out_tree) {
 			kson_property prop = {0};
 			prop.type = KSON_PROPERTY_TYPE_UNKNOWN;
 			prop.name = kstring_id_create(buf);
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 			prop.name_str = string_duplicate(buf);
 #endif
 
@@ -1119,7 +1119,7 @@ void kson_object_cleanup(kson_object* obj) {
 			} break;
 			}
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 			if (p->name_str) {
 				string_free(p->name_str);
 			}
@@ -1188,7 +1188,7 @@ static b8 kson_object_property_add(kson_object* obj, kson_property_type type, co
 				// Assign new values.
 				p->type = type;
 				p->name = new_name;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 				p->name_str = string_duplicate(name);
 #endif
 				p->value = value;
@@ -1201,7 +1201,7 @@ static b8 kson_object_property_add(kson_object* obj, kson_property_type type, co
 	kson_property new_prop = {0};
 	new_prop.type = type;
 	new_prop.name = new_name;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	new_prop.name_str = string_duplicate(name);
 #endif
 	new_prop.value = value;
@@ -2078,7 +2078,7 @@ kson_property kson_object_property_create(const char* name) {
 	obj.name = INVALID_KSTRING_ID;
 	if (name) {
 		obj.name = kstring_id_create(name);
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 		obj.name_str = string_duplicate(name);
 #endif
 	}
@@ -2094,7 +2094,7 @@ kson_property kson_array_property_create(const char* name) {
 	arr.name = INVALID_KSTRING_ID;
 	if (name) {
 		arr.name = kstring_id_create(name);
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 		arr.name_str = string_duplicate(name);
 #endif
 	}

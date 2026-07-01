@@ -19,6 +19,8 @@ DEFINES =-DKEXPORT
 
 OUTPUT_NAME =
 
+BUILD_TYPE = U
+
 
 UNAME_S := 
 ifneq ($(OS),Windows_NT)
@@ -61,18 +63,20 @@ endif
 .PHONY: scaffold scaffold-win32 scaffold-linux scaffold-macos 
 .PHONY: link link-win32 link-linux link-macos
 
-all-release: scaffold genversion gen_compile_flags-release flags-release compile link
-all-debug: scaffold genversion gen_compile_flags-debug flags-debug compile link
+all-release: scaffold gen_compile_flags-release flags-release compile link genversion
+all-debug: scaffold gen_compile_flags-debug flags-debug compile link genversion
 
 flags-debug: DEFINES += -D_DEBUG
 flags-debug: CFLAGS += -g -MD -O0 -fno-omit-frame-pointer
 flags-debug: LDFLAGS += -g
-flags-debug: link compile
+flags-debug: BUILD_TYPE=D
+flags-debug: link compile genversion
 
-flags-release: DEFINES += -DKRELEASE
+flags-release: DEFINES += -DKOHI_RELEASE
 flags-release: CFLAGS += -MD -O2
 flags-release: LDFLAGS += 
-flags-release: link compile
+flags-release: BUILD_TYPE=R
+flags-release: link compile genversion
 
 scaffold: scaffold-$(PLATFORM)
 
@@ -90,10 +94,10 @@ scaffold-linux scaffold-macos:
 genversion: genversion-$(PLATFORM)
 
 genversion-win32:
-	@..\misc\versiongen.exe version.txt -outfile=src\$(ASSEMBLY_NAME)_version.h
+	@..\misc\versiongen.exe version.txt -outfile=src\$(ASSEMBLY_NAME)_version.h -build_type=$(BUILD_TYPE)
 
 genversion-linux genversion-macos:
-	@../misc/versiongen version.txt -outfile=src/$(ASSEMBLY_NAME)_version.h
+	@../misc/versiongen version.txt -outfile=src/$(ASSEMBLY_NAME)_version.h -build_type=$(BUILD_TYPE)
 
 
 .PHONY: clean
@@ -147,6 +151,8 @@ obj/%.c.o: %.c
 gen_compile_flags-debug: DEFINES += -D_DEBUG
 gen_compile_flags-debug: gen_compile_flags
 
+.PHONY: gen_compile_flags-release
+gen_compile_flags-release: DEFINES += -DKOHI_RELEASE
 gen_compile_flags-release: gen_compile_flags
 
 .PHONY: gen_compile_flags

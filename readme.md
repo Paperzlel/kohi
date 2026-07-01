@@ -82,7 +82,7 @@ Install these via package manager:
 
 #### Fedora:
 
-- `sudo dnf install git make clang libX11-devel libxcb-devel libxkbcommon-devel systemd-devel openal-soft-devel vulkan-headers libshaderc-devel `
+- `sudo dnf install git make clang libX11-devel libxcb-devel libxkbcommon-devel systemd-devel openal-soft-devel vulkan-headers libshaderc-devel sudo dnf vulkan-validation-layers`
 
 - Assimp (for tooling/model imports): `sudo apt install assimp` or `sudo pacman -S assimp` `sudo dnf install assimp-devel`
 
@@ -153,6 +153,19 @@ There are 2 build types available, Debug and Release. Debug includes debug symbo
 
 On all platforms, you can simply browse to the root directory of the project in a terminal/command prompt and run either `make all-debug`, `make all-release`, or `make clean`.
 There are alternative shell script (macOS/Linux) and batch files (Windows) available for convenience here as well.
+
+## Asset Imports
+
+There are a number of assets across several modules and plugins with the engine and the Testbed project which must be imported for Testbed to run. They can be run individually by using the launch options within VSCode such as "Testbed - Import updated assets from manifest". If not using VSCode, they may be run from the command line from the base folder:
+
+`./bin/kohi.tools importmanifest <path-to-manifest> [options]`
+
+So, to re-import only assets which have been updated or not-yet imported, you could run with the following options:
+
+`./bin/kohi.tools importmanifest testbed.kapp/asset_manifest.kson --updated-only`
+
+You can also run all module/plugin asset imports at once by running the `import-updated-assets.sh` (MacOS/Linux) or `import-updated-assets.bat` (Windows).
+There is also a task available in the VSCode config for this called "Import ALL updated assets for all modules".
 
 # Running
 

@@ -604,20 +604,11 @@ void vulkan_renderer_backend_on_window_resized(renderer_backend_interface* backe
 }
 
 void vulkan_renderer_begin_debug_label(renderer_backend_interface* backend, const char* label_text, vec3 colour) {
-#if KOHI_DEBUG
-	vulkan_context* context = (vulkan_context*)backend->internal_context;
-	vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
-	vec4 rgba = (vec4){colour.r, colour.g, colour.b, 1.0f};
-	VK_BEGIN_DEBUG_LABEL(context, command_buffer->handle, label_text, rgba);
-#endif
+	VK_BEGIN_DEBUG_LABEL(backend->internal_context, get_current_command_buffer(backend->internal_context)->handle, label_text, ((vec4){colour.r, colour.g, colour.b, 1.0f}));
 }
 
 void vulkan_renderer_end_debug_label(renderer_backend_interface* backend) {
-#if KOHI_DEBUG
-	vulkan_context* context = (vulkan_context*)backend->internal_context;
-	vulkan_command_buffer* command_buffer = get_current_command_buffer(context);
-#endif
-	VK_END_DEBUG_LABEL(context, command_buffer->handle);
+	VK_END_DEBUG_LABEL(backend->internal_context, get_current_command_buffer(backend->internal_context)->handle);
 }
 
 b8 vulkan_renderer_frame_prepare(renderer_backend_interface* backend, struct frame_data* p_frame_data) {
@@ -2334,7 +2325,7 @@ b8 vulkan_renderer_shader_create(
 		for (u32 u = 0; u < bset_state->max_instance_count; ++u) {
 			vulkan_shader_binding_set_instance_state* instance_state = &bset_state->instances[u];
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 			instance_state->descriptor_set_index = i;
 #endif
 

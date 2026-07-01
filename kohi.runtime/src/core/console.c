@@ -535,7 +535,7 @@ typedef struct ctoken {
 	u32 line_num;
 	// Position within the line.
 	u32 col_num;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	const char* content;
 #endif
 } ctoken;
@@ -572,7 +572,7 @@ typedef union cproperty_value {
 typedef struct cproperty {
 	cvar_type type;
 	kstring_id name;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	const char* name_str;
 #endif
 } cproperty;
@@ -592,14 +592,14 @@ static void reset_current_token_and_mode(ctoken* current_token, ctokenize_mode* 
 	current_token->type = CTOKEN_TYPE_UNKNOWN;
 	current_token->start = 0;
 	current_token->end = 0;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	current_token->content = 0;
 #endif
 
 	*mode = CTOKENIZE_MODE_UNKNOWN;
 }
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 static void _populate_token_content(ctoken* t, const char* source) {
 	KASSERT_MSG(t->start <= t->end, "Token start comes after token end, ya dingus!");
 	char buffer[512] = {0};

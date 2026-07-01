@@ -593,7 +593,7 @@ void kpackage_manifest_destroy(asset_manifest* manifest) {
 	}
 }
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 b8 kpackage_add_asset(kpackage* package, const asset_manifest_asset* asset) {
 	// Add to internal asset list for the package.
 	asset_entry new_entry = {

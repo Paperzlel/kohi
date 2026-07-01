@@ -53,7 +53,7 @@ flags-debug: CFLAGS += -g -MD -O0 -fno-omit-frame-pointer
 flags-debug: LDFLAGS += -g
 flags-debug: link compile
 
-flags-release: DEFINES += -DKRELEASE
+flags-release: DEFINES += -DKOHI_RELEASE
 flags-release: CFLAGS += -MD -O2
 flags-release: LDFLAGS += 
 flags-release: link compile

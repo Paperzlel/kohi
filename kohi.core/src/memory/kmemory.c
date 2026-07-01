@@ -137,7 +137,7 @@ b8 memory_system_initialize(memory_system_configuration config) {
 	f32 amount = 0;
 	const char* unit = get_unit_for_size(config.total_alloc_size, &amount);
 
-	KDEBUG("Memory system successfully allocated %.2f%s of memory.", amount, unit);
+	KINFO("Memory system successfully allocated %.2f%s of memory.", amount, unit);
 	return true;
 }
 
@@ -284,7 +284,9 @@ void kfree_aligned(void* block, u64 size, u16 alignment, memory_tag tag) {
 		}
 
 		if (print_debug) {
+#	if KOHI_DEBUG
 			printf("Original allocation made at %s:%u\n", dynamic_allocator_get_file(&state_ptr->allocator, block), dynamic_allocator_get_line(&state_ptr->allocator, block));
+#	endif
 		}
 #endif
 		u64 aligned_size = get_aligned(size, alignment);

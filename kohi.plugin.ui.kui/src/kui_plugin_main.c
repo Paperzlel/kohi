@@ -20,7 +20,7 @@ b8 kohi_plugin_ui_kui_create(struct kruntime_plugin* out_plugin) {
 	out_plugin->plugin_state_size = sizeof(kui_plugin_state);
 	out_plugin->plugin_state = kallocate(out_plugin->plugin_state_size, MEMORY_TAG_PLUGIN);
 
-	KINFO("Kohi Standard UI Plugin Creation successful (%s).", KVERSION);
+	KINFO("Kohi UI Plugin Creation successful (%s).", KVERSION);
 
 	return true;
 }

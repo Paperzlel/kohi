@@ -440,15 +440,13 @@ void kmaterial_renderer_apply_globals(kmaterial_renderer* state) {
 		dest->tex_flags = 0;
 	}
 
-	b8 is_wireframe = (state->settings.render_mode == RENDERER_VIEW_MODE_WIREFRAME);
-
 	// Set standard shader UBO globals
 	{
 		kshader shader = state->material_standard_skinned_shader;
-		KASSERT_DEBUG(kshader_system_use(shader, state->current_uses_animated ? VERTEX_LAYOUT_INDEX_SKINNED : VERTEX_LAYOUT_INDEX_STATIC));
+		KASSERT(kshader_system_use(shader, state->current_uses_animated ? VERTEX_LAYOUT_INDEX_SKINNED : VERTEX_LAYOUT_INDEX_STATIC));
 
 		// Ensure wireframe mode is (un)set.
-		KASSERT_DEBUG(kshader_system_set_wireframe(shader, is_wireframe));
+		KASSERT(kshader_system_set_wireframe(shader, (state->settings.render_mode == RENDERER_VIEW_MODE_WIREFRAME)));
 
 		// Upload the global UBO
 		kshader_set_binding_data(shader, 0, state->material_standard_skinned_shader_bs_0_instance_id, 0, 0, &state->settings, sizeof(kmaterial_settings_ubo));
@@ -588,7 +586,7 @@ void kmaterial_renderer_bind_base(kmaterial_renderer* state, kmaterial base_mate
 	case KMATERIAL_TYPE_WATER: {
 
 		shader = state->material_standard_skinned_shader;
-		KASSERT_DEBUG(kshader_system_use(shader, state->current_uses_animated ? VERTEX_LAYOUT_INDEX_SKINNED : VERTEX_LAYOUT_INDEX_STATIC));
+		KASSERT(kshader_system_use(shader, state->current_uses_animated ? VERTEX_LAYOUT_INDEX_SKINNED : VERTEX_LAYOUT_INDEX_STATIC));
 
 		ktexture reflection_colour_tex = texture_is_loaded(material->reflection_texture) ? material->reflection_texture : state->default_texture;
 		ktexture refraction_colour_tex = texture_is_loaded(material->refraction_texture) ? material->refraction_texture : state->default_texture;
@@ -623,8 +621,8 @@ void kmaterial_renderer_bind_base(kmaterial_renderer* state, kmaterial base_mate
 void kmaterial_renderer_apply_immediates(kmaterial_renderer* state, kmaterial_instance instance, const kmaterial_render_immediate_data* immediates) {
 	KASSERT_DEBUG(state);
 
-	const kmaterial_instance_data* instance_data = kmaterial_get_material_instance_data(engine_systems_get()->material_system, instance);
-	KASSERT_DEBUG(instance_data);
+	/* const kmaterial_instance_data* instance_data = kmaterial_get_material_instance_data(engine_systems_get()->material_system, instance);
+	KASSERT_DEBUG(instance_data); */
 
 	const kmaterial_data* base_material = kmaterial_get_base_material_data(engine_systems_get()->material_system, instance.base_material);
 	KASSERT_DEBUG(base_material);
@@ -639,7 +637,7 @@ void kmaterial_renderer_apply_immediates(kmaterial_renderer* state, kmaterial_in
 	case KMATERIAL_TYPE_STANDARD:
 	case KMATERIAL_TYPE_WATER: {
 		shader = state->material_standard_skinned_shader;
-		KASSERT_DEBUG(kshader_system_use(shader, state->current_uses_animated ? VERTEX_LAYOUT_INDEX_SKINNED : VERTEX_LAYOUT_INDEX_STATIC));
+		KASSERT(kshader_system_use(shader, state->current_uses_animated ? VERTEX_LAYOUT_INDEX_SKINNED : VERTEX_LAYOUT_INDEX_STATIC));
 
 		kshader_set_immediate_data(shader, immediates, sizeof(kmaterial_render_immediate_data));
 	} break;

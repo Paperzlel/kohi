@@ -1828,12 +1828,6 @@ static void editor_command_execute(console_command_context context) {
 			}
 			KFREE_TYPE_CARRAY(result.file_paths, const char*, result.file_count);
 		}
-	} else if (strings_equal(context.command_name, "wm")) {
-
-		// HACK: write manifest hack for testing. Remove this.
-		kpackage* game_package = vfs_package_get(engine_systems_get()->vfs_system_state, state->game_package_name);
-		// TODO: add asset.
-		kpackage_save(game_package);
 	}
 }
 
@@ -3448,6 +3442,9 @@ static b8 hft_save_button_clicked(struct kui_state* state, kui_control self, str
 
 	b8 result = kscene_hf_terrain_save(editor->edit_scene);
 	KTRACE("HF Terrain save %s", result ? "success" : "failure");
+	if (!result) {
+		KERROR("Failed to save HF Terrain. See logs for details.");
+	}
 
 	return false;
 }

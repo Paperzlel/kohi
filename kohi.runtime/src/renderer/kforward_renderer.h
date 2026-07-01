@@ -294,6 +294,7 @@ typedef struct kdebug_geometry_render_data {
 	colour4 colour;
 } kdebug_geometry_render_data;
 
+#if KOHI_DEBUG
 typedef struct kworld_debug_pass_render_data {
 	mat4 projection;
 	mat4 view;
@@ -308,6 +309,7 @@ typedef struct kworld_debug_pass_render_data {
 
 	b8 do_pass;
 } kworld_debug_pass_render_data;
+#endif
 
 typedef struct kforward_renderer_render_data {
 
@@ -317,8 +319,10 @@ typedef struct kforward_renderer_render_data {
 	// Data to render in the forward pass.
 	kforward_pass_render_data forward_data;
 
+#if KOHI_DEBUG
 	// Data to render world debug geometry
 	kworld_debug_pass_render_data world_debug_data;
+#endif
 } kforward_renderer_render_data;
 
 KAPI b8 kforward_renderer_create(ktexture colour_buffer, ktexture depth_stencil_buffer, kforward_renderer* out_renderer);

@@ -406,6 +406,8 @@ static b8 texture_browser_cancel_button_clicked(struct kui_state* state, kui_con
 }
 
 static b8 texture_browser_import_button_clicked(struct kui_state* state, kui_control self, struct kui_mouse_event event) {
+// TODO: Should saving be allowed here? In general the editor wouldn't be available in non-debug builds, but...
+#if KOHI_DEBUG
 	kui_base_control* base = kui_system_get_base(state, self);
 	texture_browser* tb = base->user_data;
 
@@ -484,6 +486,8 @@ static b8 texture_browser_import_button_clicked(struct kui_state* state, kui_con
 	}
 
 	texture_browser_refresh(tb);
+
+#endif
 	return false;
 }
 

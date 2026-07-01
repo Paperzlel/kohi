@@ -43,7 +43,7 @@ typedef struct kson_token {
 	kson_token_type type;
 	u32 start;
 	u32 end;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	const char* content;
 #endif
 } kson_token;
@@ -111,7 +111,7 @@ typedef struct kson_property {
 	kson_property_type type;
 	// The name of the property. If this belongs to an array, it should be INVALID_KSTRING_ID.
 	kstring_id name;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	// The original named string. Only used in debug builds.
 	const char* name_str;
 #endif

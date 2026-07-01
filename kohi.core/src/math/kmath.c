@@ -9,6 +9,10 @@
 #include "math/math_types.h"
 #include "math/mtwister.h" // for 64-bit RNG
 
+#if !KOHI_DEBUG
+#	include "platform/platform.h"
+#endif
+
 static b8 rand_seeded = false;
 static mtrand_state rng_u64 = {0}; // State for unsigned 64-bit RNG
 
@@ -284,7 +288,7 @@ f32 vec3_angle(vec3 v_0, vec3 v_1) {
 static void seed_randoms(void) {
 	u32 ptime_u32;
 	u32 ptime_u64;
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 	// NOTE: Use a predetermined seed for debug builds for testing purposes.
 	ptime_u32 = 42;
 	ptime_u64 = 42;

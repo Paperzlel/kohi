@@ -1,5 +1,5 @@
 Changelog
-- 0.12.0
+- 0.12.0 IMPORTANT! Run `make setup` again before attempting to build.
   - Added Heightfield Terrain (HF Terrain), a non-movable type of terrain designed for quick rendering and interaction.
   - Added editor for Heightfield Terrains.
   - Fixed a thread safety issue in the console.
@@ -18,6 +18,8 @@ Changelog
   - Added cross-platform open file dialog, used to import assets (textures for now).
   - Added Texture Browser, with ability to call in "selection" mode for tools that need it (i.e. terrain material editor)
   - Reworked keymaps to use application-defined action code, with a single entry point into the application versus a ton of function pointers. This improves hot-reloadability.
+  - Reworked build system and codebase to iron out issues between debug and release builds. `make setup` should be run after updating to 0.12.0 and before building.
+  - Release builds are working again.
 
 
 - 0.11.0

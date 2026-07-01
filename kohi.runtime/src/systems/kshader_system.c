@@ -12,7 +12,9 @@
 #include <utils/render_type_utils.h>
 
 #include "core/engine.h"
-#include "core/event.h"
+#if KOHI_HOT_RELOAD
+#	include "core/event.h"
+#endif
 #include "renderer/renderer_frontend.h"
 #include "renderer/renderer_types.h"
 #include "systems/asset_system.h"
@@ -39,8 +41,10 @@ typedef struct kshader_pipeline_data {
 	kname* stage_names;
 	// Array of source text for stages. Matches size of stage_source_text_resources;
 	const char** stage_sources;
+#if KOHI_DEBUG
 	// Array of file watch ids, one per stage.
 	u32* watch_ids;
+#endif
 } kshader_pipeline_data;
 
 typedef struct kshader_attachment {
@@ -315,7 +319,9 @@ static void internal_shader_destroy(kshader* shader) {
 				KFREE_TYPE_CARRAY(p->stage_source_text_generations, u32, p->shader_stage_count);
 				KFREE_TYPE_CARRAY(p->stage_names, kname, p->shader_stage_count);
 				KFREE_TYPE_CARRAY(p->stages, shader_stage, p->shader_stage_count);
+#if KOHI_DEBUG
 				KFREE_TYPE_CARRAY(p->watch_ids, u32, p->shader_stage_count);
+#endif
 			}
 
 			KFREE_TYPE_CARRAY(p->attributes, shader_attribute, p->attribute_count);
@@ -511,7 +517,9 @@ static kshader shader_create(const kasset_shader* asset) {
 		p->stage_source_text_generations = KALLOC_TYPE_CARRAY(u32, ap->stage_count);
 		p->stage_names = KALLOC_TYPE_CARRAY(kname, ap->stage_count);
 		p->stage_sources = KALLOC_TYPE_CARRAY(const char*, ap->stage_count);
+#if KOHI_DEBUG
 		p->watch_ids = KALLOC_TYPE_CARRAY(u32, ap->stage_count);
+#endif
 
 		// Process stages.
 		for (u8 i = 0; i < ap->stage_count; ++i) {
@@ -525,7 +533,9 @@ static kshader shader_create(const kasset_shader* asset) {
 			p->stage_sources[i] = string_duplicate(p->stage_source_text_assets[i]->content);
 
 			// Watch source file for hot-reload.
+#if KOHI_DEBUG
 			p->watch_ids[i] = asset_system_watch_for_reload(asset_state, KASSET_TYPE_TEXT, p->stage_names[i], kname_create(ap->stages[i].package_name));
+#endif
 		}
 
 		// Process attributes

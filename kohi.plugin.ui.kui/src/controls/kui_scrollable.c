@@ -409,13 +409,14 @@ static b8 on_y_drag_start(kui_state* state, kui_control self, struct kui_mouse_e
 	kui_base_control* base = kui_system_get_base(state, thumb->base.parent);
 	kui_scrollable_control* typed_control = (kui_scrollable_control*)base;
 
-	f32 min_y = typed_control->scrollbar_width + 4;
+	if (typed_control) {
 
-	// Record the offset within the button.
-	typed_control->scrollbar_y.drag_button_mouse_offset = event.local_y;
-	typed_control->scrollbar_y.drag_button_offset_start = kui_control_position_get(state, self).y;
+		// Record the offset within the button.
+		typed_control->scrollbar_y.drag_button_mouse_offset = event.local_y;
+		typed_control->scrollbar_y.drag_button_offset_start = kui_control_position_get(state, self).y;
 
-	KTRACE("drag start offset y: %f", min_y - event.local_y);
+		KTRACE("drag start offset y: %f", (typed_control->scrollbar_width + 4) - event.local_y);
+	}
 
 	return false;
 }
@@ -428,15 +429,16 @@ static b8 on_y_drag(kui_state* state, kui_control self, struct kui_mouse_event e
 	kui_base_control* base = kui_system_get_base(state, thumb->base.parent);
 	kui_scrollable_control* typed_control = (kui_scrollable_control*)base;
 
-	f32 min_y = typed_control->scrollbar_width + 4;
+	if (typed_control) {
 
-	// TODO: Bound this to the scrollbar, update scroll pct based on new position in scroll bar,
-	// The set the scroll percentage manually before a recalculate().
-	vec3 pos = kui_control_position_get(state, self);
-	pos.y += event.delta_y;
-	kui_control_position_set(state, self, pos);
+		// TODO: Bound this to the scrollbar, update scroll pct based on new position in scroll bar,
+		// The set the scroll percentage manually before a recalculate().
+		vec3 pos = kui_control_position_get(state, self);
+		pos.y += event.delta_y;
+		kui_control_position_set(state, self, pos);
 
-	KTRACE("drag offset y: %f", min_y - event.local_y);
+		KTRACE("drag offset y: %f", (typed_control->scrollbar_width + 4) - event.local_y);
+	}
 
 	return false;
 }
@@ -449,9 +451,8 @@ static b8 on_y_drag_end(kui_state* state, kui_control self, struct kui_mouse_eve
 	kui_base_control* base = kui_system_get_base(state, thumb->base.parent);
 	kui_scrollable_control* typed_control = (kui_scrollable_control*)base;
 
-	f32 min_y = typed_control->scrollbar_width + 4;
-
-	KTRACE("drag end offset y: %f", min_y - event.local_y);
-
+	if (typed_control) {
+		KTRACE("drag end offset y: %f", (typed_control->scrollbar_width + 4) - event.local_y);
+	}
 	return false;
 }

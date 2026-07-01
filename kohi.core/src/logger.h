@@ -19,7 +19,7 @@
 #define LOG_INFO_ENABLED 1
 
 // Disable debug and trace logging for release builds.
-#if KRELEASE == 1
+#if KOHI_RELEASE
 #	define LOG_DEBUG_ENABLED 0
 #	define LOG_TRACE_ENABLED 0
 #else

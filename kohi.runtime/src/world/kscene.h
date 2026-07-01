@@ -46,11 +46,9 @@ typedef enum kscene_flag_bits {
 	KSCENE_FLAG_RENDER_HF_TERRAIN_BIT = 1 << 4,
 	KSCENE_FLAG_RENDER_WATER_PLANES_BIT = 1 << 5,
 	KSCENE_FLAG_RENDER_FOG_BIT = 1 << 6,
-#if KOHI_DEBUG
 	KSCENE_FLAG_DEBUG_ENABLED_BIT = 1 << 29,
 	KSCENE_FLAG_DEBUG_GRID_ENABLED_BIT = 1 << 30,
 	KSCENE_FLAG_DEBUG_BVH_ENABLED_BIT = 1 << 31,
-#endif
 } kscene_flag_bits;
 
 typedef u32 kscene_flags;

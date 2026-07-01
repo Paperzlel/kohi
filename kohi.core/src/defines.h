@@ -210,12 +210,18 @@ STATIC_ASSERT(sizeof(f64) == 8, "Expected f64 to be 8 bytes.");
 #	endif
 #endif
 
-#if _DEBUG
+#ifdef _DEBUG
 #	define KOHI_DEBUG 1
-#	define KOHI_RELEASE 0
+#	ifdef KOHI_RELEASE
+#		undef KOHI_RELEASE
+#	endif
 #else
-#	define KOHI_RELEASE 1
-#	define KOHI_DEBUG 0
+// NOTE: The build NOT being debug doesn't necessarily mean it's release... don't assume this.
+#	ifdef KOHI_RELEASE
+#		undef KOHI_RELEASE
+#		define KOHI_RELEASE 1
+#		define KOHI_DEBUG 0
+#	endif
 #endif
 
 // Feature build flags.

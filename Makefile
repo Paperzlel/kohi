@@ -186,10 +186,10 @@ plugin-renderer-utils-release:
 kohi-tools-release:
 	$(MAKE) -C kohi.tools all-release
 
-plugin-testbed-klib-release:
+testbed-klib-release:
 	$(MAKE) -C testbed.klib all-release
 
-plugin-testbed-kapp-release:
+testbed-kapp-release:
 	$(MAKE) -C testbed.kapp all-release
 
 # Clean "builds"

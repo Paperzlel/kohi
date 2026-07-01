@@ -139,7 +139,7 @@ b8 vulkan_result_is_success(VkResult result) {
 	}
 }
 
-#if defined(_DEBUG)
+#if KOHI_DEBUG
 void vulkan_set_debug_object_name(vulkan_context* context, VkObjectType object_type, void* object_handle, const char* object_name) {
 	const VkDebugUtilsObjectNameInfoEXT name_info = {
 		VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,

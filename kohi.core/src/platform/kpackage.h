@@ -94,7 +94,7 @@ KAPI b8 kpackage_asset_text_write(kpackage* package, kname name, u64 size, const
 KAPI b8 kpackage_parse_manifest_file_content(const char* path, asset_manifest* out_manifest);
 KAPI void kpackage_manifest_destroy(asset_manifest* manifest);
 
-#ifdef KOHI_DEBUG
+#if KOHI_DEBUG
 KAPI b8 kpackage_add_asset(kpackage* package, const asset_manifest_asset* asset);
 KAPI b8 kpackage_save(kpackage* package);
 #endif

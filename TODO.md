@@ -30,8 +30,10 @@ The items in this list are not in any particular order. This list will be update
         number of callbacks needed to be refreshed on hot-reload.
   - [x] Convert Testbed over to new keymaps and confirm hot-reloading works.
 - [x] Ensure Testbed project runs successfully (debug)
-- [ ] Add notes to readme about binary asset generation.
-  - [ ] Add a "import all from manifest(s)" option that just runs all imports.
+- [x] Add notes to readme about binary asset generation.
+  - [x] Add a "import all from manifest(s)" option that just runs all imports.
+- [x] Stability pass
+  - [x] Ensure both debug AND release builds work as expected.
 
 ## 0.13.0 Release
 
