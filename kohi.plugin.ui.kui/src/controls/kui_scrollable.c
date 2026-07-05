@@ -409,11 +409,15 @@ static b8 on_y_drag_start(kui_state* state, kui_control self, struct kui_mouse_e
 	kui_base_control* base = kui_system_get_base(state, thumb->base.parent);
 	kui_scrollable_control* typed_control = (kui_scrollable_control*)base;
 
-	// Record the offset within the button.
-	typed_control->scrollbar_y.drag_button_mouse_offset = event.local_y;
-	typed_control->scrollbar_y.drag_button_offset_start = kui_control_position_get(state, self).y;
+	if (typed_control) {
 
-	KTRACE("drag start offset y: %f", (typed_control->scrollbar_width + 4) - event.local_y);
+		// Record the offset within the button.
+		typed_control->scrollbar_y.drag_button_mouse_offset = event.local_y;
+		typed_control->scrollbar_y.drag_button_offset_start = kui_control_position_get(state, self).y;
+
+		KTRACE("drag start offset y: %f", (typed_control->scrollbar_width + 4) - event.local_y);
+	}
+
 	return false;
 }
 

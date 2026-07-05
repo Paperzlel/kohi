@@ -61,8 +61,8 @@ KAPI void _asset_system_stop_watch(struct asset_system_state* state, u32 watch_i
 #	define asset_system_stop_watch(state, watch_id) _asset_system_stop_watch(state, watch_id)
 
 #else
-#	define asset_system_watch_for_reload(state, type, asset_name, package_name) INVALID_ID_U32
-#	define asset_system_stop_watch(state, watch_id) INVALID_ID_U32
+#	define asset_system_watch_for_reload(state, type, asset_name, package_name)
+#	define asset_system_stop_watch(state, watch_id)
 #endif
 
 KAPI kname* asset_system_names_by_type(struct asset_system_state* state, kasset_type type, kname package_name, u32* out_count);

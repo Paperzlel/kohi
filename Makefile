@@ -154,7 +154,7 @@ build-release: kohi-release kohi-tests-release kohi-plugins-release kohi-tools-r
 kohi-release: core-release runtime-release 
 kohi-tests-release: kohi-release core-tests-release runtime-tests-release
 kohi-plugins-release: kohi-release plugin-audio-openal-release plugin-renderer-vulkan-release plugin-renderer-ui-kui-release plugin-renderer-utils-release
-testbed-release: kohi-release kohi-plugins-release plugin-testbed-klib-release plugin-testbed-kapp-release
+testbed-release: kohi-release kohi-plugins-release testbed-klib-release testbed-kapp-release
 
 utils-release:
 	$(MAKE) -C utils all-release
