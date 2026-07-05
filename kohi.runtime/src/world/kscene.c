@@ -75,10 +75,8 @@ typedef struct base_entity {
 
 	bvh_id bvh_id;
 
-#if KOHI_DEBUG
 	// Index into debug data array, unique across all types.
 	u32 debug_data_index;
-#endif
 } base_entity;
 
 /**
@@ -353,7 +351,6 @@ typedef struct kscene {
 #if KOHI_DEBUG
 	// Darray of debug render data.
 	kscene_debug_data* debug_datas;
-
 #endif
 } kscene;
 
@@ -394,6 +391,7 @@ static kscene_debug_data_type debug_type_from_shape_type(kshape_type type);
 // Intentional no-op in release
 #	define create_debug_data(scene, size, center, entity, type, colour, ignore_scale, out_debug_data_index)
 #	define debug_type_from_shape_type(type)
+static void create_debug_data(kscene* scene, vec3 size, vec3 center, kentity entity, kscene_debug_data_type type, colour4 colour, b8 ignore_scale, u32* out_debug_data_index) {}
 #endif
 
 struct kscene* kscene_create(kname scene_asset_name, const char* config, PFN_scene_loaded loaded_callback, void* load_context, b8 is_editor) {
@@ -1953,6 +1951,14 @@ void kscene_set_entity_scale(struct kscene* scene, kentity entity, vec3 scale) {
 	}
 }
 
+#if KOHI_DEBUG
+#define KASSERT_DEBUG_LEN(m_darray)\
+	u16 len = darray_length(m_darray);\
+	KASSERT_DEBUG(typed_index < len)
+#else
+#define KASSERT_DEBUG_LEN(m_darray)
+#endif
+
 void kscene_remove_entity(struct kscene* scene, kentity* entity) {
 	KASSERT_DEBUG(scene);
 
@@ -1964,41 +1970,49 @@ void kscene_remove_entity(struct kscene* scene, kentity* entity) {
 
 		case KENTITY_TYPE_NONE: {
 			KASSERT_DEBUG(typed_index < darray_length(scene->bases));
+			KASSERT_DEBUG_LEN(scene->bases);
 			base_entity_destroy(scene, &scene->bases[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_MODEL: {
 			KASSERT_DEBUG(typed_index < darray_length(scene->models));
+			KASSERT_DEBUG_LEN(scene->models);
 			model_entity_destroy(scene, &scene->models[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_POINT_LIGHT: {
 			KASSERT_DEBUG(typed_index < darray_length(scene->point_lights));
+			KASSERT_DEBUG_LEN(scene->point_lights);
 			point_light_entity_destroy(scene, &scene->point_lights[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_SPAWN_POINT: {
 			KASSERT_DEBUG(typed_index < darray_length(scene->spawn_points));
+			KASSERT_DEBUG_LEN(scene->spawn_points);
 			spawn_point_entity_destroy(scene, &scene->spawn_points[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_VOLUME: {
 			KASSERT_DEBUG(typed_index < darray_length(scene->volumes));
+			KASSERT_DEBUG_LEN(scene->volumes);
 			volume_entity_destroy(scene, &scene->volumes[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_HIT_SHAPE: {
 			KASSERT_DEBUG(typed_index < darray_length(scene->hit_shapes));
+			KASSERT_DEBUG_LEN(scene->hit_shapes);
 			hit_shape_entity_destroy(scene, &scene->hit_shapes[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_WATER_PLANE: {
 			KASSERT_DEBUG(typed_index < darray_length(scene->water_planes));
+			KASSERT_DEBUG_LEN(scene->water_planes);
 			water_plane_entity_destroy(scene, &scene->water_planes[typed_index], *entity);
 		} break;
 
 		case KENTITY_TYPE_AUDIO_EMITTER: {
 			KASSERT_DEBUG(typed_index < darray_length(scene->audio_emitters));
+			KASSERT_DEBUG_LEN(scene->audio_emitters);
 			audio_emitter_entity_destroy(scene, &scene->audio_emitters[typed_index], *entity);
 		} break;
 
@@ -2012,6 +2026,8 @@ void kscene_remove_entity(struct kscene* scene, kentity* entity) {
 		*entity = KENTITY_INVALID;
 	}
 }
+
+#undef KASSERT_DEBUG_LEN
 
 static void entity_add_child(kscene* scene, kentity parent, kentity child) {
 	base_entity* parent_base = get_entity_base(scene, parent);

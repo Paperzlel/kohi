@@ -852,6 +852,7 @@ static struct kscene* get_current_render_scene(application* app) {
 	}
 #endif
 
+
 	return KNULL;
 }
 
